@@ -42,7 +42,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
 
     const fetchUsers = async () => {
-      const { data, error } = await supabase.from('users').select('*');
+      const { data, error }: { data: User[] | null; error: any } = await supabase.from('users').select('*');
 
       if (error) {
         console.error('Error fetching users:', error);
@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
 
       if (data) {
-        setUsers(data as User[]);
+        setUsers(data);
       }
     };
 
