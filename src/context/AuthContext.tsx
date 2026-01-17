@@ -38,6 +38,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const { logAction } = useAudit();
 
+
   useEffect(() => {
     setIsLoading(true);
 
@@ -46,29 +47,64 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) {
         console.error('Error fetching users:', error);
-        // Fallback to initialUsers if DB is empty or error (during migration/dev)
-        if (!data || data.length === 0) {
-          // Check if it's just empty, execute seed if deemed necessary or just empty state
-          // For now, assume migration filled it.
-        }
         return;
       }
 
       if (data) {
         setUsers(data);
+
+        // Validar sessão armazenada contra o banco de dados em tempo real
+        try {
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            const parsedUser = JSON.parse(storedUser) as User;
+            // Verificar se o usuário ainda existe no banco
+            const validUser = data.find(u => u.id === parsedUser.id);
+            if (validUser) {
+              // Atualizar dados do usuário com informações mais recentes do banco
+              const updatedUser = { ...validUser };
+              delete updatedUser.password; // Nunca armazenar senha
+              setUser(updatedUser);
+              localStorage.setItem('user', JSON.stringify(updatedUser));
+            } else {
+              // Usuário não existe mais, limpar sessão
+              localStorage.removeItem('user');
+              setUser(null);
+            }
+          }
+        } catch (error) {
+          console.error("Failed to validate session:", error);
+          localStorage.removeItem('user');
+          setUser(null);
+        }
       }
     };
 
     fetchUsers();
 
-    // Ideally setup Realtime Subscription here
+    // Realtime Subscription - atualiza sessão quando usuário mudar no banco
     const channel = supabase.channel('users-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
-        fetchUsers(); // Refresh on any change
+        const record = payload.new as Record<string, any> | null;
+        const oldRecord = payload.old as Record<string, any> | null;
+
+        // Atualizar lista de usuários
+        fetchUsers();
+
+        // Se o usuário logado foi modificado ou deletado, atualizar sessão
+        if (payload.eventType === 'UPDATE' && record && user && record.id === user.id) {
+          const updatedUser = { ...record } as User;
+          delete updatedUser.password;
+          setUser(updatedUser);
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+        } else if (payload.eventType === 'DELETE' && oldRecord && user && oldRecord.id === user.id) {
+          // Usuário foi deletado, fazer logout
+          setUser(null);
+          localStorage.removeItem('user');
+        }
       })
       .subscribe();
 
-    // Sessão não persistida - usuário precisa fazer login a cada acesso
     setIsLoading(false);
 
     return () => {
@@ -99,6 +135,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       delete userToStore.password;
 
       setUser(userToStore);
+      localStorage.setItem('user', JSON.stringify(userToStore));
       logAction('Login', `Usuário "${foundUser.name}" realizou login.`, userToStore);
       router.push('/admin');
       toast({
@@ -119,6 +156,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       logAction('Logout', `Usuário "${user.name}" realizou logout.`, user);
     }
     setUser(null);
+    localStorage.removeItem('user');
     router.push('/login');
   };
 
@@ -190,6 +228,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const updatedCurrentUser = { ...user, ...data };
         delete updatedCurrentUser.password;
         setUser(updatedCurrentUser);
+        localStorage.setItem('user', JSON.stringify(updatedCurrentUser));
       }
 
       toast({
