@@ -64,6 +64,24 @@ export default function Home() {
     return allProducts.filter(p => p.onSale && !p.isHidden);
   }, [allProducts]);
 
+  // Produtos em destaque - combina promoções com produtos normais para garantir mínimo de 3
+  const featuredProducts = useMemo(() => {
+    const MIN_FEATURED = 3;
+    const promos = allProducts.filter(p => p.onSale && !p.isHidden && p.stock > 0);
+
+    if (promos.length >= MIN_FEATURED) {
+      return promos.slice(0, 6); // Max 6 produtos
+    }
+
+    // Completar com produtos normais (não em promoção) que tenham estoque
+    const normalProducts = allProducts
+      .filter(p => !p.onSale && !p.isHidden && p.stock > 0)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()); // Mais recentes primeiro
+
+    const combined = [...promos, ...normalProducts].slice(0, MIN_FEATURED);
+    return combined;
+  }, [allProducts]);
+
   const filteredAndSortedProducts = useMemo(() => {
     let filtered = [...allProducts].filter(p => !p.isHidden);
 
@@ -129,60 +147,64 @@ export default function Home() {
         onFilterChange={handleFilterChange}
         currentFilters={filters}
       />
-      {saleProducts.length > 0 && (
-        <section className="w-full bg-muted/50">
+      {featuredProducts.length > 0 && (
+        <section className="w-full bg-gradient-to-r from-primary/5 via-accent/5 to-primary/5">
           <div className="container mx-auto py-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-primary flex items-center gap-2">
+                <span className="text-3xl">🔥</span> Destaques
+              </h2>
+            </div>
             <Carousel
               opts={{
                 align: "start",
-                loop: true,
+                loop: featuredProducts.length > 3,
               }}
               className="w-full"
             >
               <CarouselContent>
-                {saleProducts.map((product) => (
+                {featuredProducts.map((product) => (
                   <CarouselItem
                     key={product.id}
-                    className={
-                      saleProducts.length === 1
-                        ? 'basis-full'
-                        : saleProducts.length === 2
-                          ? 'md:basis-1/2 lg:basis-1/2'
-                          : 'md:basis-1/2 lg:basis-1/3'
-                    }
+                    className="md:basis-1/2 lg:basis-1/3"
                   >
-                    <div className="p-1 h-full">
+                    <div className="p-2 h-full">
                       <Link href={`/produtos/${product.id}`} className="block h-full">
-                        <Card className="h-full overflow-hidden flex flex-col md:flex-row justify-between transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
-                          <CardContent className="flex flex-col md:flex-row items-center text-center md:text-left p-6 gap-4">
-                            <div className="relative w-40 h-40 md:w-48 md:h-48 flex-shrink-0">
-                              <Badge className="absolute top-0 left-0 z-10 bg-destructive text-destructive-foreground hover:bg-destructive/80">
-                                Promoção
+                        <Card className="h-full overflow-hidden flex flex-col md:flex-row justify-between transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 border-2 border-transparent hover:border-accent/30">
+                          <CardContent className="flex flex-col md:flex-row items-center text-center md:text-left p-6 gap-6 w-full">
+                            <div className="relative w-36 h-36 md:w-44 md:h-44 flex-shrink-0 rounded-lg overflow-hidden bg-muted/50">
+                              <Badge
+                                className={`absolute top-2 left-2 z-10 ${product.onSale
+                                    ? 'bg-destructive text-destructive-foreground'
+                                    : 'bg-primary text-primary-foreground'
+                                  }`}
+                              >
+                                {product.onSale ? '🏷️ Promoção' : '⭐ Destaque'}
                               </Badge>
                               <Image
                                 src={(product.imageUrls && product.imageUrls.length > 0) ? product.imageUrls[0] : 'https://placehold.co/400x400.png'}
                                 alt={product.name}
                                 fill
-                                className="object-contain"
+                                className="object-contain p-2"
                                 sizes="50vw"
                               />
                             </div>
                             <div className="flex flex-col justify-between flex-grow">
                               <div>
-                                <h3 className="text-xl font-bold leading-tight min-h-[56px]">{product.name}</h3>
-                                <p className="text-muted-foreground text-sm mt-1 mb-3 h-10 overflow-hidden">{product.description}</p>
+                                <h3 className="text-lg font-bold leading-tight line-clamp-2">{product.name}</h3>
+                                <p className="text-muted-foreground text-sm mt-2 line-clamp-2">{product.description}</p>
                               </div>
-                              <div className="mt-auto">
+                              <div className="mt-4">
                                 {product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0 && (
                                   <p className="text-sm text-muted-foreground line-through">{formatCurrency(product.price)}</p>
                                 )}
-                                <p className="text-3xl font-bold text-accent">
+                                <p className="text-2xl font-bold text-accent">
                                   {product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0
                                     ? formatCurrency(product.originalPrice)
                                     : formatCurrency(product.price)
                                   }
                                 </p>
-                                <Button className="mt-3 w-full md:w-auto">Ver Detalhes</Button>
+                                <Button className="mt-3 w-full bg-accent hover:bg-accent/90">Ver Detalhes</Button>
                               </div>
                             </div>
                           </CardContent>
@@ -192,8 +214,12 @@ export default function Home() {
                   </CarouselItem>
                 ))}
               </CarouselContent>
-              <CarouselPrevious className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4" />
-              <CarouselNext className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4" />
+              {featuredProducts.length > 3 && (
+                <>
+                  <CarouselPrevious className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 bg-background shadow-lg" />
+                  <CarouselNext className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 bg-background shadow-lg" />
+                </>
+              )}
             </Carousel>
           </div>
         </section>
