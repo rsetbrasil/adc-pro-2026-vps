@@ -242,7 +242,11 @@ export default function CreateOrderPage() {
         name: product.name,
         price: product.price,
         quantity: quantityToAdd,
-        imageUrl: ('imageUrl' in product && product.imageUrl) ? product.imageUrl : (product.imageUrls?.[0] || 'https://placehold.co/100x100.png'),
+        imageUrl: ('imageUrl' in product && product.imageUrl)
+          ? product.imageUrl
+          : ('imageUrls' in product && product.imageUrls?.[0])
+            ? product.imageUrls[0]
+            : 'https://placehold.co/100x100.png',
       }];
     }
     setSelectedItems(newItems);
