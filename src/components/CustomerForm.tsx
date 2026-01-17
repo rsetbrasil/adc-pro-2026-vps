@@ -16,12 +16,12 @@ import { Textarea } from './ui/textarea';
 import { maskCpf, maskPhone, maskZip, onlyDigits } from '@/lib/utils';
 
 function isValidCPF(cpf: string) {
-    if (typeof cpf !== 'string') return false;
-    cpf = cpf.replace(/[^\d]+/g, '');
-    if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false;
-    const cpfDigits = cpf.split('').map(el => +el);
-    const rest = (count: number) => (cpfDigits.slice(0, count).reduce((soma, el, index) => soma + el * (count + 1 - index), 0) * 10) % 11 % 10;
-    return rest(9) === cpfDigits[9] && rest(10) === cpfDigits[10];
+  if (typeof cpf !== 'string') return false;
+  cpf = cpf.replace(/[^\d]+/g, '');
+  if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false;
+  const cpfDigits = cpf.split('').map(el => +el);
+  const rest = (count: number) => (cpfDigits.slice(0, count).reduce((soma, el, index) => soma + el * (count + 1 - index), 0) * 10) % 11 % 10;
+  return rest(9) === cpfDigits[9] && rest(10) === cpfDigits[10];
 }
 
 const customerSchema = z.object({
@@ -56,7 +56,7 @@ interface CustomerFormProps {
 export default function CustomerForm({ onSave, onCancel, customerToEdit }: CustomerFormProps) {
   const { toast } = useToast();
   const lastAutofilledZipRef = useRef<string | null>(null);
-  
+
   const form = useForm<z.infer<typeof customerSchema>>({
     resolver: zodResolver(customerSchema),
     defaultValues: customerToEdit || {
@@ -76,7 +76,7 @@ export default function CustomerForm({ onSave, onCancel, customerToEdit }: Custo
       observations: '',
     },
   });
-  
+
   const handleZipAutofill = async (zipDigits: string) => {
     if (zipDigits.length !== 8) return;
     if (lastAutofilledZipRef.current === zipDigits) return;
@@ -118,51 +118,54 @@ export default function CustomerForm({ onSave, onCancel, customerToEdit }: Custo
       toast({ title: "Erro de Rede", description: "Não foi possível buscar o CEP.", variant: "destructive" });
     }
   };
-  
+
   async function onSubmit(values: z.infer<typeof customerSchema>) {
-    await onSave(values);
+    await onSave({
+      ...values,
+      id: customerToEdit?.id || onlyDigits(values.cpf), // Use existing ID or CPF digits
+    });
   }
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 py-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField control={form.control} name="cpf" render={({ field }) => ( <FormItem><FormLabel>CPF</FormLabel><FormControl><Input placeholder="000.000.000-00" {...field} onChange={(e) => field.onChange(maskCpf(e.target.value))} inputMode="numeric" maxLength={14} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Nome Completo</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="phone" render={({ field }) => ( <FormItem><FormLabel>Telefone (WhatsApp)</FormLabel><FormControl><Input placeholder="(99) 99999-9999" {...field} onChange={(e) => field.onChange(maskPhone(e.target.value))} inputMode="tel" maxLength={15} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="phone2" render={({ field }) => ( <FormItem><FormLabel>Telefone 2 (Opcional)</FormLabel><FormControl><Input placeholder="(99) 99999-9999" {...field} onChange={(e) => field.onChange(maskPhone(e.target.value))} inputMode="tel" maxLength={15} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="phone3" render={({ field }) => ( <FormItem><FormLabel>Telefone 3 (Opcional)</FormLabel><FormControl><Input placeholder="(99) 99999-9999" {...field} onChange={(e) => field.onChange(maskPhone(e.target.value))} inputMode="tel" maxLength={15} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="email" render={({ field }) => ( <FormItem><FormLabel>Email (Opcional)</FormLabel><FormControl><Input placeholder="seu@email.com" {...field} /></FormControl><FormMessage /></FormItem> )} />
+          <FormField control={form.control} name="cpf" render={({ field }) => (<FormItem><FormLabel>CPF</FormLabel><FormControl><Input placeholder="000.000.000-00" {...field} onChange={(e) => field.onChange(maskCpf(e.target.value))} inputMode="numeric" maxLength={14} /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Nome Completo</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="phone" render={({ field }) => (<FormItem><FormLabel>Telefone (WhatsApp)</FormLabel><FormControl><Input placeholder="(99) 99999-9999" {...field} onChange={(e) => field.onChange(maskPhone(e.target.value))} inputMode="tel" maxLength={15} /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="phone2" render={({ field }) => (<FormItem><FormLabel>Telefone 2 (Opcional)</FormLabel><FormControl><Input placeholder="(99) 99999-9999" {...field} onChange={(e) => field.onChange(maskPhone(e.target.value))} inputMode="tel" maxLength={15} /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="phone3" render={({ field }) => (<FormItem><FormLabel>Telefone 3 (Opcional)</FormLabel><FormControl><Input placeholder="(99) 99999-9999" {...field} onChange={(e) => field.onChange(maskPhone(e.target.value))} inputMode="tel" maxLength={15} /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email (Opcional)</FormLabel><FormControl><Input placeholder="seu@email.com" {...field} /></FormControl><FormMessage /></FormItem>)} />
         </div>
         <h4 className="text-lg font-semibold pt-4 border-t">Endereço</h4>
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-            <FormField control={form.control} name="zip" render={({ field }) => ( <FormItem className="md:col-span-2"><FormLabel>CEP</FormLabel><FormControl><Input placeholder="00000-000" {...field} inputMode="numeric" maxLength={9} onChange={(e) => { const masked = maskZip(e.target.value); field.onChange(masked); const zipDigits = onlyDigits(masked); if (zipDigits.length === 8) void handleZipAutofill(zipDigits); }} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="address" render={({ field }) => ( <FormItem className="md:col-span-4"><FormLabel>Endereço</FormLabel><FormControl><Input placeholder="Rua, Av." {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="number" render={({ field }) => ( <FormItem className="md:col-span-2"><FormLabel>Número</FormLabel><FormControl><Input placeholder="123" {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="complement" render={({ field }) => ( <FormItem className="md:col-span-4"><FormLabel>Complemento (opcional)</FormLabel><FormControl><Input placeholder="Apto, bloco, casa, etc." {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="neighborhood" render={({ field }) => ( <FormItem className="md:col-span-3"><FormLabel>Bairro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="city" render={({ field }) => ( <FormItem className="md:col-span-3"><FormLabel>Cidade</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField control={form.control} name="state" render={({ field }) => ( <FormItem className="md:col-span-6"><FormLabel>Estado</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
+          <FormField control={form.control} name="zip" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>CEP</FormLabel><FormControl><Input placeholder="00000-000" {...field} inputMode="numeric" maxLength={9} onChange={(e) => { const masked = maskZip(e.target.value); field.onChange(masked); const zipDigits = onlyDigits(masked); if (zipDigits.length === 8) void handleZipAutofill(zipDigits); }} /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="address" render={({ field }) => (<FormItem className="md:col-span-4"><FormLabel>Endereço</FormLabel><FormControl><Input placeholder="Rua, Av." {...field} /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="number" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Número</FormLabel><FormControl><Input placeholder="123" {...field} /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="complement" render={({ field }) => (<FormItem className="md:col-span-4"><FormLabel>Complemento (opcional)</FormLabel><FormControl><Input placeholder="Apto, bloco, casa, etc." {...field} /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="neighborhood" render={({ field }) => (<FormItem className="md:col-span-3"><FormLabel>Bairro</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="city" render={({ field }) => (<FormItem className="md:col-span-3"><FormLabel>Cidade</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+          <FormField control={form.control} name="state" render={({ field }) => (<FormItem className="md:col-span-6"><FormLabel>Estado</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
         </div>
         <FormField
-            control={form.control}
-            name="observations"
-            render={({ field }) => (
-                <FormItem>
-                    <FormLabel>Observações (Opcional)</FormLabel>
-                    <FormControl>
-                        <Textarea placeholder="Informações adicionais sobre o cliente..." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                </FormItem>
-            )}
+          control={form.control}
+          name="observations"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Observações (Opcional)</FormLabel>
+              <FormControl>
+                <Textarea placeholder="Informações adicionais sobre o cliente..." {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
         />
         <div className="flex justify-end gap-4 pt-4">
-            <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
-            <Button type="submit" disabled={form.formState.isSubmitting}>
-                <Save className="mr-2 h-4 w-4" />
-                Salvar Cliente
-            </Button>
+          <Button type="button" variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button type="submit" disabled={form.formState.isSubmitting}>
+            <Save className="mr-2 h-4 w-4" />
+            Salvar Cliente
+          </Button>
         </div>
       </form>
     </Form>
