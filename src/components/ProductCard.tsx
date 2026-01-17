@@ -31,20 +31,20 @@ export default function ProductCard({ product }: ProductCardProps) {
       currency: 'BRL',
     }).format(value);
   };
-  
+
   const handleAddToCart = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     addToCart(product);
     setIsCartOpen(true);
   }
 
-  const imageUrl = (product.imageUrls && product.imageUrls.length > 0) 
-    ? product.imageUrls[0] 
+  const imageUrl = (product.imageUrls && product.imageUrls.length > 0)
+    ? product.imageUrls[0]
     : 'https://placehold.co/600x600.png';
-  
+
   const maxInstallments = product.maxInstallments ?? 1;
   const installmentValue = maxInstallments > 1 ? product.price / maxInstallments : 0;
-  
+
   const showCountdown = product.onSale && product.promotionEndDate && new Date(product.promotionEndDate) > new Date();
 
 
@@ -79,13 +79,21 @@ export default function ProductCard({ product }: ProductCardProps) {
             {product.description}
           </CardDescription>
           <div className="mt-2">
-            <p className="text-2xl font-bold text-primary">
+            {product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0 && (
+              <p className="text-sm text-muted-foreground line-through">
                 {formatCurrency(product.price)}
+              </p>
+            )}
+            <p className="text-2xl font-bold text-primary">
+              {product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0
+                ? formatCurrency(product.originalPrice)
+                : formatCurrency(product.price)
+              }
             </p>
             {installmentValue > 0 && (
-                <p className="text-sm text-accent font-semibold -mt-1">
-                    ou {maxInstallments}x de {formatCurrency(installmentValue)} sem juros
-                </p>
+              <p className="text-sm text-accent font-semibold -mt-1">
+                ou {maxInstallments}x de {formatCurrency(installmentValue)} sem juros
+              </p>
             )}
           </div>
         </CardContent>

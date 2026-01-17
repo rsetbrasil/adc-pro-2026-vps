@@ -34,7 +34,7 @@ export default function ProductDetailPage() {
     if (isProductsLoading || !products) return null;
     return products.find(p => p.id === id) || null;
   }, [id, products, isProductsLoading]);
-  
+
   const handleAddToCart = () => {
     if (!product) return;
     addToCart(product);
@@ -62,7 +62,7 @@ export default function ProductDetailPage() {
       </div>
     );
   }
-  
+
   const maxInstallments = product.maxInstallments ?? 10;
   const installmentValue = maxInstallments > 0 ? product.price / maxInstallments : product.price;
   const showCountdown = product.onSale && product.promotionEndDate && new Date(product.promotionEndDate) > new Date();
@@ -70,31 +70,31 @@ export default function ProductDetailPage() {
 
   return (
     <PublicPageLayout>
-    <div className="container mx-auto max-w-6xl py-12 px-4">
-      <Button variant="ghost" onClick={() => router.back()} className="mb-8">
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Voltar
-      </Button>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          router.push('/#catalog');
-        }}
-        className="mb-8 md:hidden"
-      >
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar produtos..."
-            className="pl-10"
-            value={headerSearch}
-            onChange={(e) => setHeaderSearch(e.target.value)}
-          />
-        </div>
-      </form>
-      <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
-        <div>
-           <Carousel className="w-full">
+      <div className="container mx-auto max-w-6xl py-12 px-4">
+        <Button variant="ghost" onClick={() => router.back()} className="mb-8">
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Voltar
+        </Button>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            router.push('/#catalog');
+          }}
+          className="mb-8 md:hidden"
+        >
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar produtos..."
+              className="pl-10"
+              value={headerSearch}
+              onChange={(e) => setHeaderSearch(e.target.value)}
+            />
+          </div>
+        </form>
+        <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
+          <div>
+            <Carousel className="w-full">
               <CarouselContent>
                 {(product.imageUrls && product.imageUrls.length > 0) ? product.imageUrls.map((url, index) => (
                   <CarouselItem key={index}>
@@ -114,11 +114,11 @@ export default function ProductDetailPage() {
                     </div>
                   </CarouselItem>
                 )) : (
-                   <CarouselItem>
+                  <CarouselItem>
                     <div className="p-1">
                       <Card>
                         <CardContent className="relative aspect-square w-full flex items-center justify-center p-0 overflow-hidden rounded-lg bg-muted">
-                           <Image
+                          <Image
                             src="https://placehold.co/600x600.png"
                             alt={product.name}
                             fill
@@ -134,71 +134,74 @@ export default function ProductDetailPage() {
               <CarouselPrevious className="absolute left-2" />
               <CarouselNext className="absolute right-2" />
             </Carousel>
-        </div>
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2 mb-2">
-            <Badge variant="secondary" className="capitalize w-fit">{product.category}</Badge>
-            {product.subcategory && <Badge variant="outline" className="capitalize w-fit">{product.subcategory}</Badge>}
           </div>
-          <h1 className="text-3xl lg:text-4xl font-bold font-headline text-primary">{product.name}</h1>
-          {product.code && <p className="text-sm text-muted-foreground mt-2">Cód. Item: {product.code}</p>}
-          <p className="text-muted-foreground mt-4 text-lg">{product.description}</p>
-          
-          {showCountdown && <CountdownTimer endDate={product.promotionEndDate!} />}
-          
-          {product.paymentCondition && (
-            <Alert className="mt-4 border-accent/50 text-accent-foreground bg-accent/5">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2 mb-2">
+              <Badge variant="secondary" className="capitalize w-fit">{product.category}</Badge>
+              {product.subcategory && <Badge variant="outline" className="capitalize w-fit">{product.subcategory}</Badge>}
+            </div>
+            <h1 className="text-3xl lg:text-4xl font-bold font-headline text-primary">{product.name}</h1>
+            {product.code && <p className="text-sm text-muted-foreground mt-2">Cód. Item: {product.code}</p>}
+            <p className="text-muted-foreground mt-4 text-lg">{product.description}</p>
+
+            {showCountdown && <CountdownTimer endDate={product.promotionEndDate!} />}
+
+            {product.paymentCondition && (
+              <Alert className="mt-4 border-accent/50 text-accent-foreground bg-accent/5">
                 <Info className="h-5 w-5 text-accent" />
                 <AlertDescription className="font-semibold text-accent">
-                    {product.paymentCondition}
+                  {product.paymentCondition}
                 </AlertDescription>
-            </Alert>
-          )}
-
-          <Separator className="my-6" />
-
-          <div className="space-y-4">
-            {product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > product.price && (
-              <p className="text-base text-muted-foreground line-through">
-                {formatCurrency(product.originalPrice)}
-              </p>
+              </Alert>
             )}
-            <p className="text-4xl font-bold text-foreground">
-              {formatCurrency(product.price)}
-            </p>
-            {maxInstallments > 1 && (
-              <p className="text-lg text-accent font-semibold">
-                ou {maxInstallments}x de {formatCurrency(installmentValue)} sem juros
+
+            <Separator className="my-6" />
+
+            <div className="space-y-4">
+              {product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0 && (
+                <p className="text-base text-muted-foreground line-through">
+                  {formatCurrency(product.price)}
+                </p>
+              )}
+              <p className="text-4xl font-bold text-foreground">
+                {product.onSale && typeof product.originalPrice === 'number' && product.originalPrice > 0
+                  ? formatCurrency(product.originalPrice)
+                  : formatCurrency(product.price)
+                }
               </p>
-            )}
-          </div>
-          
-          <div className="mt-8">
-            {product.stock > 0 ? (
-              <>
-                <Button size="lg" onClick={handleAddToCart} className="w-full md:w-auto bg-accent hover:bg-accent/90">
-                  <ShoppingCart className="mr-2 h-5 w-5" />
-                  Adicionar ao Carrinho
+              {maxInstallments > 1 && (
+                <p className="text-lg text-accent font-semibold">
+                  ou {maxInstallments}x de {formatCurrency(installmentValue)} sem juros
+                </p>
+              )}
+            </div>
+
+            <div className="mt-8">
+              {product.stock > 0 ? (
+                <>
+                  <Button size="lg" onClick={handleAddToCart} className="w-full md:w-auto bg-accent hover:bg-accent/90">
+                    <ShoppingCart className="mr-2 h-5 w-5" />
+                    Adicionar ao Carrinho
+                  </Button>
+                  <p className="text-sm text-green-600 mt-2">Em estoque: {product.stock} unidades</p>
+                </>
+              ) : (
+                <Button size="lg" disabled className="w-full md:w-auto">
+                  Produto Indisponível
                 </Button>
-                <p className="text-sm text-green-600 mt-2">Em estoque: {product.stock} unidades</p>
-              </>
-            ) : (
-              <Button size="lg" disabled className="w-full md:w-auto">
-                Produto Indisponível
-              </Button>
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
-      <Card className="mt-12">
-        <CardHeader>
+        <Card className="mt-12">
+          <CardHeader>
             <CardTitle>Descrição Detalhada do Produto</CardTitle>
-        </CardHeader>
-        <CardContent>
+          </CardHeader>
+          <CardContent>
             <p className="text-muted-foreground whitespace-pre-line">{product.longDescription}</p>
-        </CardContent>
-      </Card>
-    </div>
+          </CardContent>
+        </Card>
+      </div>
     </PublicPageLayout>
   );
 }
