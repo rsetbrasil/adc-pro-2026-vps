@@ -68,17 +68,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       })
       .subscribe();
 
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      }
-    } catch (error) {
-      console.error("Failed to read user from localStorage", error);
-      localStorage.removeItem('user');
-    } finally {
-      setIsLoading(false);
-    }
+    // Sessão não persistida - usuário precisa fazer login a cada acesso
+    setIsLoading(false);
 
     return () => {
       supabase.removeChannel(channel);
@@ -108,7 +99,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       delete userToStore.password;
 
       setUser(userToStore);
-      localStorage.setItem('user', JSON.stringify(userToStore));
       logAction('Login', `Usuário "${foundUser.name}" realizou login.`, userToStore);
       router.push('/admin');
       toast({
@@ -129,7 +119,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       logAction('Logout', `Usuário "${user.name}" realizou logout.`, user);
     }
     setUser(null);
-    localStorage.removeItem('user');
     router.push('/login');
   };
 
@@ -201,7 +190,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const updatedCurrentUser = { ...user, ...data };
         delete updatedCurrentUser.password;
         setUser(updatedCurrentUser);
-        localStorage.setItem('user', JSON.stringify(updatedCurrentUser));
       }
 
       toast({
