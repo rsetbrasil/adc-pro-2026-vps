@@ -308,7 +308,8 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     // Realtime subscriptions
     const channel = supabase.channel('admin-dashboard-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-        console.log("Realtime order change detected:", payload.eventType, payload.new?.id);
+        const newRecord = payload.new as Record<string, any> | null;
+        console.log("Realtime order change detected:", payload.eventType, newRecord?.id);
         // Handle state updates directly
         if (payload.eventType === 'INSERT') {
           const newOrder = mapOrderFromDB(payload.new);

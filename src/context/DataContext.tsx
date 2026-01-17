@@ -141,7 +141,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const productsChannel = supabase.channel('public:products')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
-        console.log("Product realtime event:", payload.eventType, payload.new?.id);
+        const newRecord = payload.new as Record<string, any> | null;
+        const oldRecord = payload.old as Record<string, any> | null;
+        console.log("Product realtime event:", payload.eventType, newRecord?.id);
 
         if (payload.eventType === 'INSERT') {
           const newProduct = mapProductFromDB(payload.new);
@@ -155,7 +157,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           saveCache('productsCache', updated);
           lastGoodProductsRef.current = updated;
         } else if (payload.eventType === 'DELETE') {
-          const deletedId = payload.old?.id;
+          const deletedId = oldRecord?.id;
           if (deletedId) {
             setProducts(prev => prev.filter(p => p.id !== deletedId));
             const filtered = lastGoodProductsRef.current.filter(p => p.id !== deletedId);
