@@ -35,12 +35,12 @@ import { allocateNextCustomerCode } from '@/lib/customer-code';
 import { doc, getDoc, runTransaction } from 'firebase/firestore';
 
 function isValidCPF(cpf: string) {
-    if (typeof cpf !== 'string') return false;
-    cpf = cpf.replace(/[^\d]+/g, '');
-    if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false;
-    const cpfDigits = cpf.split('').map(el => +el);
-    const rest = (count: number) => (cpfDigits.slice(0, count).reduce((soma, el, index) => soma + el * (count + 1 - index), 0) * 10) % 11 % 10;
-    return rest(9) === cpfDigits[9] && rest(10) === cpfDigits[10];
+  if (typeof cpf !== 'string') return false;
+  cpf = cpf.replace(/[^\d]+/g, '');
+  if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false;
+  const cpfDigits = cpf.split('').map(el => +el);
+  const rest = (count: number) => (cpfDigits.slice(0, count).reduce((soma, el, index) => soma + el * (count + 1 - index), 0) * 10) % 11 % 10;
+  return rest(9) === cpfDigits[9] && rest(10) === cpfDigits[10];
 }
 
 const checkoutSchema = z.object({
@@ -128,7 +128,7 @@ export default function CheckoutForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [isNewCustomer, setIsNewCustomer] = useState(true);
-  
+
   const form = useForm<z.infer<typeof checkoutSchema>>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
@@ -156,7 +156,7 @@ export default function CheckoutForm() {
       router.push('/');
     }
   }, [cartItems, router]);
-  
+
   const handleCpfChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const maskedValue = maskCpf(e.target.value);
     form.setValue('cpf', maskedValue);
@@ -220,7 +220,7 @@ export default function CheckoutForm() {
       };
     });
   }, [cartItems, products]);
-  
+
   const maxAllowedInstallments = useMemo(() => {
     if (cartItemsWithDetails.length === 0) return 1;
     const maxInstallmentsArray = cartItemsWithDetails.map(item => item.maxInstallments);
@@ -228,7 +228,7 @@ export default function CheckoutForm() {
   }, [cartItemsWithDetails]);
 
   const isCartValid = cartItemsWithDetails.every(item => item.hasEnoughStock);
-  
+
   const sellerName = form.watch('sellerName');
   const paymentMethod = form.watch('paymentMethod');
 
@@ -259,7 +259,7 @@ export default function CheckoutForm() {
       form.setValue('neighborhood', data.bairro || '');
       form.setValue('city', data.localidade || '');
       form.setValue('state', data.uf || '');
-      
+
       toast({
         title: "Endereço Encontrado!",
         description: "Seu endereço foi preenchido automaticamente.",
@@ -277,21 +277,24 @@ export default function CheckoutForm() {
 
 
   const total = getCartTotal();
-  
+
   if (cartItems.length === 0) {
-      return null;
+    return null;
   }
 
   async function onSubmit(values: z.infer<typeof checkoutSchema>) {
-    
+
     const { sellerId: formSellerId, sellerName: formSellerName, paymentMethod: formPaymentMethod, ...customerValues } = values;
 
-    const customerData: CustomerInfo = customerValues;
-    
+    const customerData: CustomerInfo = {
+      ...customerValues,
+      id: onlyDigits(customerValues.cpf), // Use CPF digits as ID
+    };
+
     if (customerData.cpf && isNewCustomer) {
-        customerData.password = customerData.cpf.substring(0, 6);
+      customerData.password = customerData.cpf.substring(0, 6);
     }
-    
+
     const finalPaymentMethod = formPaymentMethod as PaymentMethod;
     const isCrediario = finalPaymentMethod === 'Crediário';
     const finalInstallments = isCrediario ? 1 : 0;
@@ -300,14 +303,14 @@ export default function CheckoutForm() {
 
     const installmentDetails = isCrediario
       ? Array.from({ length: finalInstallments }, (_, i) => ({
-          id: `inst-temp-${i + 1}`,
-          installmentNumber: i + 1,
-          amount: total,
-          dueDate: addMonths(orderDate, i + 1).toISOString(),
-          status: 'Pendente' as const,
-          paidAmount: 0,
-          payments: [],
-        }))
+        id: `inst-temp-${i + 1}`,
+        installmentNumber: i + 1,
+        amount: total,
+        dueDate: addMonths(orderDate, i + 1).toISOString(),
+        status: 'Pendente' as const,
+        paidAmount: 0,
+        payments: [],
+      }))
       : [];
 
     const order: Partial<Order> & { firstDueDate: Date } = {
@@ -326,122 +329,122 @@ export default function CheckoutForm() {
       observations: values.observations,
       source: 'Online',
     };
-    
+
     try {
-        const { db } = getClientFirebase();
-        const prefix = order.items && order.items.length > 0 ? 'PED' : 'REG';
-        const orderId = `${prefix}-${Date.now().toString().slice(-6)}`;
+      const { db } = getClientFirebase();
+      const prefix = order.items && order.items.length > 0 ? 'PED' : 'REG';
+      const orderId = `${prefix}-${Date.now().toString().slice(-6)}`;
 
-        const cpfDigits = onlyDigits(customerData.cpf || '');
-        let code = (customerData.code || '').trim();
+      const cpfDigits = onlyDigits(customerData.cpf || '');
+      let code = (customerData.code || '').trim();
 
-        if (!code) {
-          const customerRef = cpfDigits.length === 11 ? doc(db, 'customers', cpfDigits) : null;
-          const snap = customerRef ? await getDoc(customerRef) : null;
-          const fromDoc = snap?.exists() ? String((snap.data() as any)?.code || '') : '';
-          code = fromDoc.trim() || (await allocateNextCustomerCode(db));
+      if (!code) {
+        const customerRef = cpfDigits.length === 11 ? doc(db, 'customers', cpfDigits) : null;
+        const snap = customerRef ? await getDoc(customerRef) : null;
+        const fromDoc = snap?.exists() ? String((snap.data() as any)?.code || '') : '';
+        code = fromDoc.trim() || (await allocateNextCustomerCode(db));
+      }
+
+      const orderToSave: Order = {
+        ...(order as any),
+        id: orderId,
+        customer: {
+          ...customerData,
+          code,
+        },
+        sellerId: order.sellerId || '',
+        sellerName: order.sellerName || 'Não atribuído',
+        commissionPaid: false,
+        createdAt: new Date().toISOString(),
+        createdById: '',
+        createdByName: customerData.name || '',
+        createdByRole: 'cliente',
+        commission: 0,
+      };
+
+      orderToSave.commission = calculateCommission(orderToSave, products);
+
+      const orderRef = doc(db, 'orders', orderId);
+
+      await runTransaction(db, async (tx) => {
+        for (const item of orderToSave.items) {
+          const productRef = doc(db, 'products', item.id);
+          const productSnap = await tx.get(productRef);
+          if (!productSnap.exists()) {
+            throw new Error('Produto não encontrado.');
+          }
+          const currentStock = Number((productSnap.data() as any)?.stock ?? 0);
+          if (!Number.isFinite(currentStock) || currentStock < item.quantity) {
+            throw new Error('Estoque insuficiente para um ou mais produtos.');
+          }
+          tx.update(productRef, { stock: currentStock - item.quantity });
         }
 
-        const orderToSave: Order = {
-          ...(order as any),
-          id: orderId,
-          customer: {
-            ...customerData,
-            code,
-          },
-          sellerId: order.sellerId || '',
-          sellerName: order.sellerName || 'Não atribuído',
-          commissionPaid: false,
-          createdAt: new Date().toISOString(),
-          createdById: '',
-          createdByName: customerData.name || '',
-          createdByRole: 'cliente',
-          commission: 0,
-        };
+        tx.set(orderRef, { ...orderToSave, customer: sanitizeCustomerForFirestore(orderToSave.customer) });
+      });
 
-        orderToSave.commission = calculateCommission(orderToSave, products);
+      const savedOrder = orderToSave;
+      if (savedOrder) {
+        setLastOrder(savedOrder);
 
-        const orderRef = doc(db, 'orders', orderId);
-
-        await runTransaction(db, async (tx) => {
-          for (const item of orderToSave.items) {
-            const productRef = doc(db, 'products', item.id);
-            const productSnap = await tx.get(productRef);
-            if (!productSnap.exists()) {
-              throw new Error('Produto não encontrado.');
-            }
-            const currentStock = Number((productSnap.data() as any)?.stock ?? 0);
-            if (!Number.isFinite(currentStock) || currentStock < item.quantity) {
-              throw new Error('Estoque insuficiente para um ou mais produtos.');
-            }
-            tx.update(productRef, { stock: currentStock - item.quantity });
-          }
-
-          tx.set(orderRef, { ...orderToSave, customer: sanitizeCustomerForFirestore(orderToSave.customer) });
-        });
-
-        const savedOrder = orderToSave;
-        if (savedOrder) {
-          setLastOrder(savedOrder);
-      
-          toast({
-              title: "Pedido Realizado com Sucesso!",
-              description: `Seu pedido #${savedOrder.id} foi confirmado. Seu código é ${savedOrder.customer.code || '-'}.`,
-          });
-
-          if (settings.storePhone) {
-              const storePhone = settings.storePhone.replace(/\D/g, '');
-              
-              const productsSummary = cartItemsWithDetails.map(item => 
-                `${item.name}\nValor: ${formatCurrency(item.price)}\nQtd: ${item.quantity} un\nSubtotal: ${formatCurrency(item.price * item.quantity)}`
-              ).join('\n\n');
-
-              const messageParts = [
-                  `*Novo Pedido do Catálogo Online!*`,
-                  `*Cód. Pedido:* ${savedOrder.id}`,
-                  `*Vendedor:* ${order.sellerName || 'Não atribuído'}`,
-                  ``,
-                  `*PRODUTOS:*`,
-                  productsSummary,
-                  ``,
-                  `---------------------------`,
-                  ``,
-                  `*Total da Compra:* ${formatCurrency(total)}`,
-                  `*Forma de Pagamento:* ${finalPaymentMethod}`,
-                  `*Condição Sugerida:* Até ${maxAllowedInstallments}x`,
-                  `*Observação:* ${values.observations || '-'}`,
-                  ``,
-                  `---------------------------`,
-                  `*DADOS DO CLIENTE:*`,
-                  `${values.name}`,
-                  `${values.phone}`,
-                  `CPF: ${values.cpf}`,
-                  `Cód. Cliente: ${savedOrder.customer.code || '-'}`,
-                  ``,
-                  `*ENDEREÇO:*`,
-                  `CEP: ${values.zip}`,
-                  `${values.address}, Nº ${values.number}`,
-                  `${values.neighborhood} - ${values.city}/${values.state}`,
-              ];
-
-              const message = messageParts.join('\n');
-              const encodedMessage = encodeURIComponent(message);
-              
-              const webUrl = `https://wa.me/55${storePhone}?text=${encodedMessage}`;
-              window.open(webUrl, '_blank');
-          }
-
-          clearCart();
-      
-          router.push(`/order-confirmation/${savedOrder.id}`);
-        }
-    } catch (error) {
-        console.error("Failed to process order:", error);
         toast({
-            title: "Erro ao Finalizar Pedido",
-            description: error instanceof Error ? error.message : "Não foi possível completar o pedido.",
-            variant: "destructive"
+          title: "Pedido Realizado com Sucesso!",
+          description: `Seu pedido #${savedOrder.id} foi confirmado. Seu código é ${savedOrder.customer.code || '-'}.`,
         });
+
+        if (settings.storePhone) {
+          const storePhone = settings.storePhone.replace(/\D/g, '');
+
+          const productsSummary = cartItemsWithDetails.map(item =>
+            `${item.name}\nValor: ${formatCurrency(item.price)}\nQtd: ${item.quantity} un\nSubtotal: ${formatCurrency(item.price * item.quantity)}`
+          ).join('\n\n');
+
+          const messageParts = [
+            `*Novo Pedido do Catálogo Online!*`,
+            `*Cód. Pedido:* ${savedOrder.id}`,
+            `*Vendedor:* ${order.sellerName || 'Não atribuído'}`,
+            ``,
+            `*PRODUTOS:*`,
+            productsSummary,
+            ``,
+            `---------------------------`,
+            ``,
+            `*Total da Compra:* ${formatCurrency(total)}`,
+            `*Forma de Pagamento:* ${finalPaymentMethod}`,
+            `*Condição Sugerida:* Até ${maxAllowedInstallments}x`,
+            `*Observação:* ${values.observations || '-'}`,
+            ``,
+            `---------------------------`,
+            `*DADOS DO CLIENTE:*`,
+            `${values.name}`,
+            `${values.phone}`,
+            `CPF: ${values.cpf}`,
+            `Cód. Cliente: ${savedOrder.customer.code || '-'}`,
+            ``,
+            `*ENDEREÇO:*`,
+            `CEP: ${values.zip}`,
+            `${values.address}, Nº ${values.number}`,
+            `${values.neighborhood} - ${values.city}/${values.state}`,
+          ];
+
+          const message = messageParts.join('\n');
+          const encodedMessage = encodeURIComponent(message);
+
+          const webUrl = `https://wa.me/55${storePhone}?text=${encodedMessage}`;
+          window.open(webUrl, '_blank');
+        }
+
+        clearCart();
+
+        router.push(`/order-confirmation/${savedOrder.id}`);
+      }
+    } catch (error) {
+      console.error("Failed to process order:", error);
+      toast({
+        title: "Erro ao Finalizar Pedido",
+        description: error instanceof Error ? error.message : "Não foi possível completar o pedido.",
+        variant: "destructive"
+      });
     }
   }
 
@@ -459,19 +462,19 @@ export default function CheckoutForm() {
                 <div className="flex-grow">
                   <p className="font-semibold">{item.name}</p>
                   <p className="text-sm text-muted-foreground">Qtd: {item.quantity}</p>
-                   <p className="text-xs text-accent font-semibold">(em até {item.maxInstallments}x)</p>
-                   {!item.hasEnoughStock && (
-                      <div className="flex items-center gap-1 text-xs text-destructive mt-1">
-                          <AlertTriangle className="h-3 w-3" />
-                          <span>Estoque: {item.stock}. Ajuste a quantidade.</span>
-                      </div>
+                  <p className="text-xs text-accent font-semibold">(em até {item.maxInstallments}x)</p>
+                  {!item.hasEnoughStock && (
+                    <div className="flex items-center gap-1 text-xs text-destructive mt-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      <span>Estoque: {item.stock}. Ajuste a quantidade.</span>
+                    </div>
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <p className="font-semibold">{formatCurrency(item.price * item.quantity)}</p>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeFromCart(item.id)}>
-                    <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -481,29 +484,29 @@ export default function CheckoutForm() {
             <span>Total</span>
             <span>{formatCurrency(total)}</span>
           </div>
-           <div className="mt-4 p-4 bg-muted rounded-lg text-center">
-              <p className="font-bold text-md text-accent flex items-center justify-center gap-2">
-                <CreditCard /> Pagamento via {paymentMethod}
+          <div className="mt-4 p-4 bg-muted rounded-lg text-center">
+            <p className="font-bold text-md text-accent flex items-center justify-center gap-2">
+              <CreditCard /> Pagamento via {paymentMethod}
+            </p>
+            {paymentMethod === 'Crediário' && (
+              <p className="text-sm text-muted-foreground mt-1">
+                O vendedor definirá as condições de parcelamento com você após a finalização do pedido.
               </p>
-              {paymentMethod === 'Crediário' && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  O vendedor definirá as condições de parcelamento com você após a finalização do pedido.
-                </p>
-              )}
-              {paymentMethod === 'Pix' && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Após finalizar, você verá o QR Code para pagamento.
-                </p>
-              )}
-              {paymentMethod === 'Dinheiro' && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Combine com o vendedor a entrega e o pagamento.
-                </p>
-              )}
-            </div>
+            )}
+            {paymentMethod === 'Pix' && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Após finalizar, você verá o QR Code para pagamento.
+              </p>
+            )}
+            {paymentMethod === 'Dinheiro' && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Combine com o vendedor a entrega e o pagamento.
+              </p>
+            )}
+          </div>
         </div>
       </div>
-      
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <div>
@@ -536,92 +539,92 @@ export default function CheckoutForm() {
           <div>
             <h3 className="text-xl font-semibold mb-4 font-headline">Informações do Cliente</h3>
             <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField 
-                        control={form.control} 
-                        name="cpf" 
-                        render={({ field }) => ( 
-                            <FormItem>
-                                <FormLabel>CPF <span className="text-destructive">*</span></FormLabel>
-                                <FormControl>
-                                    <Input 
-                                        placeholder="000.000.000-00" 
-                                        {...field} 
-                                        onChange={handleCpfChange}
-                                        inputMode="numeric"
-                                        maxLength={14}
-                                    />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem> 
-                        )} 
-                    />
-                    <FormField
-                        control={form.control}
-                        name="code"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Código do Cliente</FormLabel>
-                                <FormControl>
-                                    <Input placeholder="Gerado automaticamente" {...field} disabled />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <FormField control={form.control} name="name" render={({ field }) => ( <FormItem><FormLabel>Nome Completo <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    {sellerName && (
-                        <div className="md:col-span-2">
-                            <FormLabel>Vendedor Responsável</FormLabel>
-                             <div className="flex items-center gap-2 h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm">
-                                <User className="h-4 w-4 text-muted-foreground" />
-                                <span>{sellerName}</span>
-                            </div>
-                        </div>
-                    )}
-                    <FormField control={form.control} name="phone" render={({ field }) => ( <FormItem><FormLabel>Telefone (WhatsApp) <span className="text-destructive">*</span></FormLabel><FormControl><Input placeholder="(99) 99999-9999" {...field} onChange={e => field.onChange(maskPhone(e.target.value))} inputMode="tel" maxLength={15} /></FormControl><FormMessage /></FormItem> )} />
-                </div>
-                 {isNewCustomer && (
-                    <div className="p-3 bg-blue-500/10 text-blue-800 rounded-lg text-sm flex items-start gap-2">
-                        <KeyRound className="h-5 w-5 mt-0.5 flex-shrink-0" />
-                        <p><strong>Atenção:</strong> Se este for seu primeiro pedido, a senha de acesso para a Área do Cliente será os <strong>6 primeiros dígitos do seu CPF</strong>.</p>
-                    </div>
-                )}
-                <h4 className="text-lg font-semibold pt-4">Endereço de Entrega</h4>
-                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                    <FormField control={form.control} name="zip" render={({ field }) => ( <FormItem className="md:col-span-2"><FormLabel>CEP <span className="text-destructive">*</span></FormLabel><FormControl><Input placeholder="00000-000" {...field} onBlur={handleZipBlur} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="address" render={({ field }) => ( <FormItem className="md:col-span-4"><FormLabel>Endereço <span className="text-destructive">*</span></FormLabel><FormControl><Input placeholder="Rua, Av." {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="number" render={({ field }) => ( <FormItem className="md:col-span-2"><FormLabel>Número <span className="text-destructive">*</span></FormLabel><FormControl><Input placeholder="123" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="complement" render={({ field }) => ( <FormItem className="md:col-span-4"><FormLabel>Complemento <span className="text-destructive">*</span></FormLabel><FormControl><Input placeholder="Apto, bloco, casa, etc." {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="neighborhood" render={({ field }) => ( <FormItem className="md:col-span-3"><FormLabel>Bairro <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="city" render={({ field }) => ( <FormItem className="md:col-span-3"><FormLabel>Cidade <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                    <FormField control={form.control} name="state" render={({ field }) => ( <FormItem className="md:col-span-6"><FormLabel>Estado <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem> )} />
-                </div>
-                 <FormField
-                    control={form.control}
-                    name="observations"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Observações <span className="text-destructive">*</span></FormLabel>
-                            <FormControl>
-                                <Textarea placeholder="Ex: Deixar na portaria, ponto de referência..." {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="cpf"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>CPF <span className="text-destructive">*</span></FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="000.000.000-00"
+                          {...field}
+                          onChange={handleCpfChange}
+                          inputMode="numeric"
+                          maxLength={14}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
+                <FormField
+                  control={form.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Código do Cliente</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Gerado automaticamente" {...field} disabled />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField control={form.control} name="name" render={({ field }) => (<FormItem><FormLabel>Nome Completo <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                {sellerName && (
+                  <div className="md:col-span-2">
+                    <FormLabel>Vendedor Responsável</FormLabel>
+                    <div className="flex items-center gap-2 h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span>{sellerName}</span>
+                    </div>
+                  </div>
+                )}
+                <FormField control={form.control} name="phone" render={({ field }) => (<FormItem><FormLabel>Telefone (WhatsApp) <span className="text-destructive">*</span></FormLabel><FormControl><Input placeholder="(99) 99999-9999" {...field} onChange={e => field.onChange(maskPhone(e.target.value))} inputMode="tel" maxLength={15} /></FormControl><FormMessage /></FormItem>)} />
+              </div>
+              {isNewCustomer && (
+                <div className="p-3 bg-blue-500/10 text-blue-800 rounded-lg text-sm flex items-start gap-2">
+                  <KeyRound className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                  <p><strong>Atenção:</strong> Se este for seu primeiro pedido, a senha de acesso para a Área do Cliente será os <strong>6 primeiros dígitos do seu CPF</strong>.</p>
+                </div>
+              )}
+              <h4 className="text-lg font-semibold pt-4">Endereço de Entrega</h4>
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <FormField control={form.control} name="zip" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>CEP <span className="text-destructive">*</span></FormLabel><FormControl><Input placeholder="00000-000" {...field} onBlur={handleZipBlur} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="address" render={({ field }) => (<FormItem className="md:col-span-4"><FormLabel>Endereço <span className="text-destructive">*</span></FormLabel><FormControl><Input placeholder="Rua, Av." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="number" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Número <span className="text-destructive">*</span></FormLabel><FormControl><Input placeholder="123" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="complement" render={({ field }) => (<FormItem className="md:col-span-4"><FormLabel>Complemento <span className="text-destructive">*</span></FormLabel><FormControl><Input placeholder="Apto, bloco, casa, etc." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="neighborhood" render={({ field }) => (<FormItem className="md:col-span-3"><FormLabel>Bairro <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="city" render={({ field }) => (<FormItem className="md:col-span-3"><FormLabel>Cidade <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                <FormField control={form.control} name="state" render={({ field }) => (<FormItem className="md:col-span-6"><FormLabel>Estado <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+              </div>
+              <FormField
+                control={form.control}
+                name="observations"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Observações <span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Ex: Deixar na portaria, ponto de referência..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
           </div>
-          
+
           <div className="flex flex-col sm:flex-row-reverse gap-4 justify-end">
             <Button type="submit" size="lg" className="w-full sm:w-auto text-lg" disabled={!isCartValid || form.formState.isSubmitting}>
-                Finalizar Compra
+              Finalizar Compra
             </Button>
             <Button type="button" variant="outline" size="lg" asChild>
-                <Link href="/#catalog">
-                    <ArrowLeft className="mr-2 h-5 w-5" />
-                    Ver Catálogo
-                </Link>
+              <Link href="/#catalog">
+                <ArrowLeft className="mr-2 h-5 w-5" />
+                Ver Catálogo
+              </Link>
             </Button>
           </div>
         </form>
