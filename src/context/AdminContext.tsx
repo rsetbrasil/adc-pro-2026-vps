@@ -1529,6 +1529,9 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    // Atualização otimista: reflete mudança imediatamente na UI
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...detailsToUpdate } : o));
+
     if (!wasCanceledOrDeleted && isNowCanceledOrDeleted) {
       await manageStockForOrder(orderToUpdate, 'add');
     }
@@ -1565,7 +1568,11 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    // Atualização otimista: remove pedido da lista imediatamente
+    setOrders(prev => prev.filter(o => o.id !== orderId));
+
     logAction('Exclusão Permanente de Pedido', `Pedido #${orderId} foi excluído permanentemente.`, user);
+    toast({ title: "Pedido Excluído", description: `O pedido #${orderId} foi excluído permanentemente.` });
   }, [orders, toast]);
 
   const recordInstallmentPayment = useCallback(async (orderId: string, installmentNumber: number, paymentData: Omit<Payment, 'receivedBy'>, logAction: LogAction, user: User | null) => {
