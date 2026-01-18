@@ -32,8 +32,8 @@ export default function Header() {
 
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if(pathname !== '/') {
-        router.push('/');
+    if (pathname !== '/') {
+      router.push('/');
     }
   };
 
@@ -48,50 +48,50 @@ export default function Header() {
         </Link>
 
         <div className="flex-grow max-w-md hidden md:block">
-            <form onSubmit={handleSearch}>
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Buscar produtos..."
-                        className="pl-10"
-                        value={headerSearch}
-                        onChange={(e) => setHeaderSearch(e.target.value)}
-                    />
-                </div>
-            </form>
+          <form onSubmit={handleSearch}>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar produtos..."
+                className="pl-10"
+                value={headerSearch}
+                onChange={(e) => setHeaderSearch(e.target.value)}
+              />
+            </div>
+          </form>
         </div>
 
         <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 pr-1">
-              <Sun className="hidden sm:block h-4 w-4 text-muted-foreground" aria-hidden />
-              <Switch
-                checked={!!isDark}
-                onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-                aria-label="Alternar tema claro/escuro"
-              />
-              <Moon className="hidden sm:block h-4 w-4 text-muted-foreground" aria-hidden />
-            </div>
-            <Link href="/admin/pedidos" className={cn(buttonVariants({ variant: "ghost", size: "icon" }))}>
-                <Settings />
-                <span className="sr-only">Painel Administrativo</span>
-            </Link>
-            <Link href={customerLink} className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "sm:w-auto sm:px-4")}>
-                <User className="sm:mr-2" />
-                <span className="hidden sm:inline">Área do Cliente</span>
-            </Link>
-            {isClient && (
-              <CartSheet>
-                  <Button variant="ghost" className="relative sm:w-auto sm:px-4">
-                      <ShoppingBag className="sm:mr-2" />
-                      <span className="hidden sm:inline">Carrinho</span>
-                      {cartCount > 0 && (
-                          <span className="absolute top-0 right-0 inline-flex items-center justify-center w-5 h-5 text-xs font-bold leading-none text-primary-foreground transform translate-x-1/2 -translate-y-1/2 bg-accent rounded-full">
-                          {cartCount}
-                          </span>
-                      )}
-                  </Button>
-              </CartSheet>
-            )}
+          <div className="hidden md:flex items-center gap-2 pr-1">
+            <Sun className="h-4 w-4 text-muted-foreground" aria-hidden />
+            <Switch
+              checked={!!isDark}
+              onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+              aria-label="Alternar tema claro/escuro"
+            />
+            <Moon className="h-4 w-4 text-muted-foreground" aria-hidden />
+          </div>
+          <Link href="/admin/pedidos" className={cn(buttonVariants({ variant: "ghost", size: "icon" }))}>
+            <Settings />
+            <span className="sr-only">Painel Administrativo</span>
+          </Link>
+          <Link href={customerLink} className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "sm:w-auto sm:px-4")}>
+            <User className="sm:mr-2" />
+            <span className="hidden sm:inline">Área do Cliente</span>
+          </Link>
+          {isClient && (
+            <CartSheet>
+              <Button variant="ghost" className="relative sm:w-auto sm:px-4">
+                <ShoppingBag className="sm:mr-2" />
+                <span className="hidden sm:inline">Carrinho</span>
+                {cartCount > 0 && (
+                  <span className="absolute top-0 right-0 inline-flex items-center justify-center w-5 h-5 text-xs font-bold leading-none text-primary-foreground transform translate-x-1/2 -translate-y-1/2 bg-accent rounded-full">
+                    {cartCount}
+                  </span>
+                )}
+              </Button>
+            </CartSheet>
+          )}
         </div>
       </div>
     </div>
