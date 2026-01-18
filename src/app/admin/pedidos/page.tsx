@@ -139,6 +139,7 @@ export default function OrdersAdminPage() {
         seller: 'all',
         showOverdue: false,
         showOnTime: false,
+        showPaidOff: false,
         dueDateRange: 'all',
         month: '',
         year: '',
@@ -214,6 +215,7 @@ export default function OrdersAdminPage() {
 
             const overdueMatch = !filters.showOverdue || isOverdue;
             const onTimeMatch = !filters.showOnTime || (!isOverdue && (hasPendingInstallments || isPaidOff));
+            const paidOffMatch = !filters.showPaidOff || isPaidOff;
 
             const dueDateMatch = filters.dueDateRange === 'all' || (o.installmentDetails || []).some(inst => {
                 if (inst.status !== 'Pendente') return false;
@@ -228,7 +230,7 @@ export default function OrdersAdminPage() {
                 return dayOfMonth >= start && dayOfMonth <= end;
             });
 
-            return searchMatch && statusMatch && sellerMatch && dateMatch && overdueMatch && onTimeMatch && dueDateMatch;
+            return searchMatch && statusMatch && sellerMatch && dateMatch && overdueMatch && onTimeMatch && paidOffMatch && dueDateMatch;
         });
     }, [orders, filters]);
 
@@ -277,12 +279,18 @@ export default function OrdersAdminPage() {
     const handleFilterChange = (filterName: keyof typeof filters, value: string | boolean) => {
         setFilters(prev => {
             const newFilters = { ...prev, [filterName]: value };
-            // Ensure only one of showOverdue or showOnTime is active
+            // Ensure only one of showOverdue, showOnTime or showPaidOff is active
             if (filterName === 'showOverdue' && value) {
                 newFilters.showOnTime = false;
+                newFilters.showPaidOff = false;
             }
             if (filterName === 'showOnTime' && value) {
                 newFilters.showOverdue = false;
+                newFilters.showPaidOff = false;
+            }
+            if (filterName === 'showPaidOff' && value) {
+                newFilters.showOverdue = false;
+                newFilters.showOnTime = false;
             }
             return newFilters;
         });
@@ -297,6 +305,7 @@ export default function OrdersAdminPage() {
             seller: 'all',
             showOverdue: false,
             showOnTime: false,
+            showPaidOff: false,
             dueDateRange: 'all',
             month: '',
             year: '',
@@ -629,6 +638,14 @@ Não esqueça de enviar o comprovante!`;
                                     >
                                         <Clock className="mr-2 h-4 w-4" />
                                         Atrasados
+                                    </Button>
+                                    <Button
+                                        variant={filters.showPaidOff ? 'default' : 'outline'}
+                                        className={cn(filters.showPaidOff && "bg-blue-600 hover:bg-blue-700")}
+                                        onClick={() => handleFilterChange('showPaidOff', !filters.showPaidOff)}
+                                    >
+                                        <CheckCircle className="mr-2 h-4 w-4" />
+                                        Quitados
                                     </Button>
                                     <Button variant="outline" onClick={handlePrintOverdueReport}>
                                         <Printer className="mr-2 h-4 w-4" />
