@@ -107,7 +107,7 @@ export type Installment = {
   payments: Payment[];
 }
 
-export type PaymentMethod = 'Crediário' | 'Pix' | 'Dinheiro';
+export type PaymentMethod = 'Crediário' | 'Pix' | 'Dinheiro' | 'Cartão Crédito' | 'Cartão Débito';
 
 export type AsaasPaymentInfo = {
   customerId?: string;

@@ -17,8 +17,7 @@ import Image from 'next/image';
 import { generatePixPayload } from '@/lib/pix';
 import PixQRCode from '@/components/PixQRCode';
 import { format } from 'date-fns';
-import { getClientFirebase } from '@/lib/firebase-client';
-import { doc, getDoc } from 'firebase/firestore';
+import { supabase } from '@/lib/supabase';
 
 
 const formatCurrency = (value: number) => {
@@ -43,32 +42,35 @@ export default function OrderConfirmationPage() {
       setIsLoading(false);
       return;
     }
-    
+
     if (!orderId) {
-        router.push('/');
-        return;
+      router.push('/');
+      return;
     }
 
-    const { db } = getClientFirebase();
-    const orderRef = doc(db, 'orders', orderId);
-
-    getDoc(orderRef).then(docSnap => {
-        if (docSnap.exists()) {
-            setOrder({ id: docSnap.id, ...docSnap.data() } as Order);
+    const fetchOrder = async () => {
+      try {
+        const { data, error } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
+        if (error) throw error;
+        if (data) {
+          setOrder(data as Order);
         } else {
-            console.error("No such order, redirecting.");
-            if (lastOrder) {
-                setOrder(lastOrder);
-            } else {
-                router.push('/');
-            }
+          console.error("No such order, redirecting.");
+          if (lastOrder) {
+            setOrder(lastOrder);
+          } else {
+            router.push('/');
+          }
         }
-    }).catch(error => {
+      } catch (error) {
         console.error("Error fetching order:", error);
         router.push('/');
-    }).finally(() => {
+      } finally {
         setIsLoading(false);
-    });
+      }
+    };
+
+    fetchOrder();
   }, [params.id, lastOrder, router]);
 
   useEffect(() => {
@@ -155,7 +157,7 @@ export default function OrderConfirmationPage() {
     if (!settings.pixKey) return null;
 
     const { pixKey, storeName, storeCity } = settings;
-    
+
     let amount = order.total;
     let txid = order.id;
 
@@ -164,7 +166,7 @@ export default function OrderConfirmationPage() {
       amount = order.installmentDetails[0].amount;
       txid = `${order.id}-${order.installmentDetails[0].installmentNumber}`;
     }
-    
+
     return generatePixPayload(pixKey, storeName, storeCity, txid, amount);
   }, [order, settings, asaasPixPayload]);
 
@@ -243,7 +245,7 @@ export default function OrderConfirmationPage() {
                   <span className="text-muted-foreground">Forma de Pagamento:</span>
                   <span className="font-semibold">{order.paymentMethod}</span>
                 </div>
-                
+
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Parcelas:</span>
                   <span className="font-semibold text-accent">

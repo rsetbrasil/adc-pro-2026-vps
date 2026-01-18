@@ -4,12 +4,9 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { getClientFirebase } from '@/lib/firebase-client';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { supabase } from '@/lib/supabase';
 import { useAudit } from './AuditContext';
 import { useAuth } from './AuthContext';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 import type { StoreSettings } from '@/lib/types';
 
 const initialSettings: StoreSettings = {
@@ -33,17 +30,6 @@ const mergeWithDefaults = (maybeSettings: Partial<StoreSettings> | null | undefi
     };
 };
 
-const isSettingsEffectivelyEmpty = (settings: StoreSettings) => {
-    return (
-        !settings.storeName?.trim() &&
-        !settings.storeAddress?.trim() &&
-        !settings.storeCity?.trim() &&
-        !settings.pixKey?.trim() &&
-        !settings.storePhone?.trim() &&
-        !settings.logoUrl?.trim()
-    );
-};
-
 const readCachedSettings = (): StoreSettings | null => {
     if (typeof window === 'undefined') return null;
     try {
@@ -60,14 +46,14 @@ const writeCachedSettings = (settings: StoreSettings) => {
     if (typeof window === 'undefined') return;
     try {
         window.localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(settings));
-    } catch {}
+    } catch { }
 };
 
 const clearCachedSettings = () => {
     if (typeof window === 'undefined') return;
     try {
         window.localStorage.removeItem(SETTINGS_CACHE_KEY);
-    } catch {}
+    } catch { }
 };
 
 interface SettingsContextType {
@@ -89,59 +75,64 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
 
     useEffect(() => {
-        const { db } = getClientFirebase();
-        const settingsRef = doc(db, 'config', 'storeSettings');
-        const unsubscribe = onSnapshot(settingsRef, async (docSnap) => {
-            const cached = readCachedSettings();
+        const fetchSettings = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('config')
+                    .select('value')
+                    .eq('key', 'storeSettings')
+                    .maybeSingle();
 
-            if (!docSnap.exists()) {
-                setSettings(cached || initialSettings);
-                setIsLoading(false);
-                return;
-            }
+                if (error) throw error;
 
-            const remote = mergeWithDefaults(docSnap.data() as Partial<StoreSettings>);
-            const remoteEmpty = isSettingsEffectivelyEmpty(remote);
-            const cachedUsable = cached && !isSettingsEffectivelyEmpty(cached);
-
-            if (remoteEmpty && cachedUsable) {
-                setSettings(cached);
-                writeCachedSettings(cached);
-                if (user?.role === 'admin') {
-                    try {
-                        await setDoc(settingsRef, cached, { merge: true });
-                    } catch {}
+                if (data?.value) {
+                    const remote = mergeWithDefaults(data.value as Partial<StoreSettings>);
+                    setSettings(remote);
+                    writeCachedSettings(remote);
                 }
+            } catch (error) {
+                console.error("Failed to load settings from Supabase:", error);
+            } finally {
                 setIsLoading(false);
-                return;
             }
+        };
 
-            setSettings(remote);
-            writeCachedSettings(remote);
-            setIsLoading(false);
-        }, (error) => {
-            console.error("Failed to load settings from Firestore:", error);
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'config/storeSettings',
-                operation: 'get',
-            }));
-            setSettings(readCachedSettings() || initialSettings);
-            setIsLoading(false);
-        });
+        fetchSettings();
 
-        return () => unsubscribe();
-    }, [user?.role]);
+        // Subscribe to real-time changes
+        const channel = supabase.channel('public:config:storeSettings')
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'config',
+                filter: "key=eq.storeSettings"
+            }, (payload) => {
+                if (payload.new && (payload.new as any).value) {
+                    const remote = mergeWithDefaults((payload.new as any).value as Partial<StoreSettings>);
+                    setSettings(remote);
+                    writeCachedSettings(remote);
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
 
     const updateSettings = async (newSettings: Partial<StoreSettings>) => {
         try {
-            const { db } = getClientFirebase();
-            const settingsRef = doc(db, 'config', 'storeSettings');
-
             const cleanedNewSettings = Object.fromEntries(
                 Object.entries(newSettings).filter(([, value]) => value !== undefined)
             ) as Partial<StoreSettings>;
 
-            await setDoc(settingsRef, cleanedNewSettings, { merge: true });
+            const updatedValue = { ...settings, ...cleanedNewSettings };
+
+            const { error } = await supabase
+                .from('config')
+                .upsert({ key: 'storeSettings', value: updatedValue });
+
+            if (error) throw error;
 
             logAction('Atualização de Configurações', `Configurações da loja foram alteradas.`, user);
             toast({
@@ -149,11 +140,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 description: "As informações da loja foram atualizadas com sucesso.",
             });
         } catch (error) {
-            console.error("Error updating settings in Firestore:", error);
+            console.error("Error updating settings in Supabase:", error);
             toast({ title: "Erro", description: "Não foi possível salvar as configurações.", variant: "destructive" });
         }
     };
-    
+
     const restoreSettings = async (settingsToRestore: StoreSettings) => {
         await updateSettings(settingsToRestore);
         logAction('Restauração de Configurações', `Configurações da loja foram restauradas de um backup.`, user);
@@ -180,4 +171,5 @@ export const useSettings = () => {
     return context;
 };
 
-    
+
+

@@ -9,7 +9,6 @@ import { DataProvider } from '@/context/DataContext';
 import { CustomerAuthProvider } from '@/context/CustomerAuthContext';
 import { CartProvider } from '@/context/CartContext';
 import { Toaster } from '@/components/ui/toaster';
-import FirebaseErrorListener from '@/components/FirebaseErrorListener';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -22,7 +21,6 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                 <CartProvider>
                   {children}
                   <Toaster />
-                  <FirebaseErrorListener />
                 </CartProvider>
               </CustomerAuthProvider>
             </DataProvider>
@@ -33,4 +31,3 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     </ThemeProvider>
   );
 }
-

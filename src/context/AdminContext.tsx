@@ -6,8 +6,6 @@ import React, { createContext, useContext, ReactNode, useCallback, useState, use
 import type { Order, Product, Installment, CustomerInfo, Category, User, CommissionPayment, Payment, StockAudit, Avaria, ChatSession } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 import { useData } from './DataContext';
 import { addMonths, format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -309,14 +307,16 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const channel = supabase.channel('admin-dashboard-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
         const newRecord = payload.new as Record<string, any> | null;
-        console.log("Realtime order change detected:", payload.eventType, newRecord?.id);
+        console.log("🔔 Realtime order change detected:", payload.eventType, newRecord?.id);
+
         // Handle state updates directly
         if (payload.eventType === 'INSERT') {
           const newOrder = mapOrderFromDB(payload.new);
+          console.log("📦 Novo pedido inserido via Real-time:", newOrder.id, newOrder.customer?.name);
           setOrders(prev => [newOrder, ...prev]);
 
-          // Notification Logic
-          if (canNotify && newOrder.source === 'Online') {
+          // Notification Logic - Agora notifica TODOS os pedidos
+          if (canNotify) {
             if (notifiedOnlineOrderIdsRef.current.has(newOrder.id)) return;
             notifiedOnlineOrderIdsRef.current.add(newOrder.id);
             persistNotifiedIds();
@@ -328,21 +328,24 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
               }).format(value);
             };
 
-            // Need to extract customer name safely
             const customerName = newOrder.customer?.name || 'Cliente';
+            const sourceLabel = newOrder.source === 'Online' ? '🌐 Catálogo' : '📝 Manual';
 
             toast({
-              title: 'Novo pedido do catálogo',
+              title: `Novo Pedido ${sourceLabel}`,
               description: `${customerName} • ${formatCurrency(newOrder.total || 0)} • Pedido ${newOrder.id}`,
             });
           }
         } else if (payload.eventType === 'UPDATE') {
           const updatedOrder = mapOrderFromDB(payload.new);
+          console.log("✏️ Pedido atualizado via Real-time:", updatedOrder.id);
           setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
         } else if (payload.eventType === 'DELETE') {
+          console.log("🗑️ Pedido removido via Real-time:", payload.old.id);
           setOrders(prev => prev.filter(o => o.id !== payload.old.id));
         }
       })
+
       .on('postgres_changes', { event: '*', schema: 'public', table: 'commission_payments' }, () => fetchCollection('commission_payments', setCommissionPayments, 'paymentDate'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_audits' }, () => fetchCollection('stock_audits', setStockAudits))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'avarias' }, () => fetchCollection('avarias', setAvarias))
@@ -1118,13 +1121,10 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.from('categories').update({ subcategories: subs }).eq('id', categoryId);
 
     if (error) {
-      console.error(error);
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: `categories/${categoryId}`,
-        operation: 'update',
-        requestResourceData: { subcategories: subs },
-      }));
+      console.error("Erro ao reordenar subcategorias:", error);
+      toast({ title: 'Erro', description: 'Não foi possível reordenar as subcategorias.', variant: 'destructive' });
     } else {
+
       logAction('Reordenação de Subcategoria', `Subcategorias da categoria "${category.name}" foram reordenadas.`, user);
     }
   }, [categories]);
@@ -1159,11 +1159,8 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const { error: targetError } = await supabase.from('categories').update({ subcategories: newTargetSubs }).eq('id', targetCategoryId);
 
     if (sourceError || targetError) {
-      console.error("Error updating categories", sourceError, targetError);
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: 'categories',
-        operation: 'update',
-      }));
+      console.error("Erro ao mover subcategoria:", sourceError, targetError);
+      toast({ title: 'Erro', description: 'Não foi possível mover a subcategoria.', variant: 'destructive' });
     } else {
       logAction('Movimentação de Subcategoria', `Subcategoria "${subName}" foi movida de "${sourceCategory.name}" para "${targetCategory.name}".`, user);
       toast({ title: 'Subcategoria Movida!', description: `"${subName}" agora faz parte de "${targetCategory.name}".` });
@@ -1190,11 +1187,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
         const { error } = await supabase.from('products').update({ stock: newStock }).eq('id', product.id);
         if (error) {
-          console.error("Stock update failed", error);
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: 'products',
-            operation: 'update',
-          }));
+          console.error("Erro ao atualizar estoque:", error);
           throw error;
         }
       }
@@ -1518,14 +1511,11 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.from('orders').update(detailsToUpdate).eq('id', orderId);
 
     if (error) {
-      console.error(error);
+      console.error("Erro ao atualizar status do pedido:", error);
       if (wasCanceledOrDeleted && !isNowCanceledOrDeleted) {
         await manageStockForOrder(orderToUpdate, 'add');
       }
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: `orders/${orderId}`,
-        operation: 'update',
-      }));
+      toast({ title: 'Erro', description: 'Não foi possível atualizar o status do pedido.', variant: 'destructive' });
       return;
     }
 
@@ -1560,11 +1550,8 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.from('orders').delete().eq('id', orderId);
 
     if (error) {
-      console.error("Failed to delete order", error);
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: `orders/${orderId}`,
-        operation: 'delete',
-      }));
+      console.error("Erro ao excluir pedido:", error);
+      toast({ title: 'Erro', description: 'Não foi possível excluir o pedido.', variant: 'destructive' });
       return;
     }
 
@@ -1607,11 +1594,8 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.from('orders').update({ installmentDetails: updatedInstallments }).eq('id', orderId);
 
     if (error) {
-      console.error("Failed to update installments", error);
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: `orders/${orderId}`,
-        operation: 'update',
-      }));
+      console.error("Erro ao atualizar parcela:", error);
+      toast({ title: 'Erro', description: 'Não foi possível registrar o pagamento.', variant: 'destructive' });
       return;
     }
 
@@ -1642,11 +1626,8 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.from('orders').update({ installmentDetails: updatedInstallments }).eq('id', orderId);
 
     if (error) {
-      console.error("Failed to reverse payment", error);
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: `orders/${orderId}`,
-        operation: 'update',
-      }));
+      console.error("Erro ao estornar pagamento:", error);
+      toast({ title: 'Erro', description: 'Não foi possível estornar o pagamento.', variant: 'destructive' });
       return;
     }
 
@@ -1668,11 +1649,8 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.from('orders').update({ installmentDetails: updatedInstallments }).eq('id', orderId);
 
     if (error) {
-      console.error("Failed to update installment due date", error);
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: `orders/${orderId}`,
-        operation: 'update',
-      }));
+      console.error("Erro ao atualizar vencimento:", error);
+      toast({ title: 'Erro', description: 'Não foi possível atualizar o vencimento.', variant: 'destructive' });
       return;
     }
 
@@ -1709,11 +1687,8 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     }).eq('id', orderId);
 
     if (error) {
-      console.error("Failed to update installment amount", error);
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: `orders/${orderId}`,
-        operation: 'update',
-      }));
+      console.error("Erro ao atualizar valor da parcela:", error);
+      toast({ title: 'Erro', description: 'Não foi possível atualizar o valor.', variant: 'destructive' });
       return;
     }
 
@@ -1779,8 +1754,8 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       logAction('Atualização de Cliente', `Dados do cliente ${customerDataForWrites.name} (CPF: ${newCpf}) foram atualizados.`, user);
       toast({ title: "Cliente Atualizado!", description: `Os dados de ${customerDataForWrites.name} foram salvos.` });
     } catch (e) {
-      console.error(e);
-      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: `customers`, operation: 'update' }));
+      console.error("Erro ao atualizar cliente:", e);
+      toast({ title: 'Erro', description: 'Não foi possível atualizar o cliente.', variant: 'destructive' });
     }
   }, [orders, toast]);
 
@@ -2174,11 +2149,8 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const { error } = await supabase.from('orders').update(payload).eq('id', orderId);
 
     if (error) {
-      console.error("Failed to update order details", error);
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: `orders/${orderId}`,
-        operation: 'update',
-      }));
+      console.error("Erro ao atualizar pedido:", error);
+      toast({ title: 'Erro', description: 'Não foi possível atualizar o pedido.', variant: 'destructive' });
       return;
     }
 

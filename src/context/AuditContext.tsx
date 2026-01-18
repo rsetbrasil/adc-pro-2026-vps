@@ -2,11 +2,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import type { AuditLog, User, UserRole } from '@/lib/types';
-import { getClientFirebase } from '@/lib/firebase-client';
-import { collection, doc, getDocs, setDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import type { AuditLog, User } from '@/lib/types';
+import { supabase } from '@/lib/supabase';
 
 interface AuditContextType {
   auditLogs: AuditLog[];
@@ -20,35 +17,47 @@ export const AuditProvider = ({ children }: { children: ReactNode }) => {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const { db } = getClientFirebase();
-    const logsCollection = collection(db, 'auditLogs');
-    const q = query(logsCollection, orderBy('timestamp', 'desc'));
+  const fetchLogs = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .order('timestamp', { ascending: false });
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const fetchedLogs = querySnapshot.docs.map(d => ({ ...d.data(), id: d.id })) as AuditLog[];
-        setAuditLogs(fetchedLogs);
-        setIsLoading(false);
-    }, (error) => {
-        console.error("Error fetching audit logs from Firestore:", error);
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: 'auditLogs',
-            operation: 'list',
-        }));
-        setIsLoading(false);
-    });
+      if (error) throw error;
 
-    return () => unsubscribe();
+      if (data) {
+        setAuditLogs(data as AuditLog[]);
+      }
+    } catch (error) {
+      console.error("Error fetching audit logs from Supabase:", error);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchLogs();
+
+    // Subscribe to real-time changes
+    const channel = supabase.channel('public:audit_logs')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs' }, (payload) => {
+        const newLog = payload.new as AuditLog;
+        setAuditLogs(prev => [newLog, ...prev]);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchLogs]);
 
 
   const logAction = useCallback(async (action: string, details: string, user: User | null) => {
     if (!user) return;
-    const { db } = getClientFirebase();
 
-    const logId = `log-${Date.now()}`;
-    const newLog: AuditLog = {
-      id: logId,
+    const newLog = {
+      id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       timestamp: new Date().toISOString(),
       userId: user.id,
       userName: user.name,
@@ -58,10 +67,11 @@ export const AuditProvider = ({ children }: { children: ReactNode }) => {
     };
 
     try {
-      await setDoc(doc(db, 'auditLogs', logId), newLog);
-      // Real-time listener will update the state
+      const { error } = await supabase.from('audit_logs').insert(newLog);
+      if (error) throw error;
+      // Real-time listener will update the state locally
     } catch (error) {
-      console.error("Error writing audit log to Firestore:", error);
+      console.error("Error writing audit log to Supabase:", error);
     }
   }, []);
 
@@ -79,3 +89,4 @@ export const useAudit = () => {
   }
   return context;
 };
+

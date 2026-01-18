@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { onlyDigits } from '@/lib/utils';
-import { getServerFirebase } from '@/lib/firebase';
+import { createClient } from '@supabase/supabase-js';
 import type { AsaasSettings } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+
+// Cria cliente Supabase para uso server-side
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const requestSchema = z.object({
   orderId: z.string().min(1),
@@ -142,9 +147,14 @@ export async function POST(request: Request) {
   };
 
   try {
-    const { db } = getServerFirebase();
-    const asaasSettingsSnap = await db.doc('config/asaasSettings').get();
-    const asaasSettings = asaasSettingsSnap.exists ? (asaasSettingsSnap.data() as AsaasSettings) : null;
+    // Buscar configurações do Asaas no Supabase
+    const { data: settingsData } = await supabase
+      .from('config')
+      .select('value')
+      .eq('key', 'asaasSettings')
+      .maybeSingle();
+
+    const asaasSettings = settingsData?.value as AsaasSettings | null;
 
     const env = resolveAsaasEnv(process.env.ASAAS_ENV || asaasSettings?.env);
     const baseUrl = resolveAsaasBaseUrl(env);
@@ -153,10 +163,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'ASAAS_ACCESS_TOKEN não configurado.' }, { status: 500 });
     }
 
-    const existingRef = db.doc(`asaasPayments/${orderId}`);
-    const existingSnap = await existingRef.get();
-    if (existingSnap.exists) {
-      return NextResponse.json(existingSnap.data());
+    // Verificar se já existe pagamento para este pedido
+    const { data: existingPayment } = await supabase
+      .from('asaas_payments')
+      .select('*')
+      .eq('orderId', orderId)
+      .maybeSingle();
+
+    if (existingPayment) {
+      return NextResponse.json(existingPayment);
     }
 
     const asaasCustomerId = await upsertCustomerId(baseUrl, token, cpfCnpjDigits, customerPayload);
@@ -206,11 +221,19 @@ export async function POST(request: Request) {
       createdAt: new Date().toISOString(),
     };
 
-    await existingRef.set(responseData, { merge: true });
-    await db.doc(`asaasPaymentMap/${payment.id}`).set({ orderId }, { merge: true });
+    // Salvar no Supabase
+    await supabase
+      .from('asaas_payments')
+      .upsert(responseData, { onConflict: 'orderId' });
 
-    await db.doc(`orders/${orderId}`).set(
-      {
+    await supabase
+      .from('asaas_payment_map')
+      .upsert({ paymentId: payment.id, orderId }, { onConflict: 'paymentId' });
+
+    // Atualizar pedido com dados do Asaas
+    await supabase
+      .from('orders')
+      .update({
         asaas: {
           customerId: asaasCustomerId,
           paymentId: payment.id,
@@ -222,12 +245,12 @@ export async function POST(request: Request) {
           },
           updatedAt: new Date().toISOString(),
         },
-      },
-      { merge: true }
-    );
+      })
+      .eq('id', orderId);
 
     return NextResponse.json(responseData);
   } catch (e) {
+    console.error('Pix error:', e);
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Erro inesperado.' }, { status: 500 });
   }
 }

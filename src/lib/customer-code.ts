@@ -1,24 +1,40 @@
-import { doc, runTransaction } from 'firebase/firestore';
-import type { Firestore } from 'firebase/firestore';
+import { supabase } from './supabase';
 
 export function formatCustomerCode(value: number): string {
   return String(value).padStart(5, '0');
 }
 
-export async function allocateNextCustomerCode(db: Firestore): Promise<string> {
-  const counterRef = doc(db, 'config', 'customerCodeCounter');
+export async function allocateNextCustomerCode(): Promise<string> {
+  try {
+    const { data, error } = await supabase
+      .from('config')
+      .select('value')
+      .eq('key', 'customerCodeCounter')
+      .maybeSingle();
 
-  return runTransaction(db, async (tx) => {
-    const snap = await tx.get(counterRef);
-    const lastNumber = snap.exists() ? Number((snap.data() as any).lastNumber || 0) : 0;
+    if (error) throw error;
+
+    const lastNumber = data?.value?.lastNumber || 0;
     const nextNumber = lastNumber + 1;
-    tx.set(counterRef, { lastNumber: nextNumber }, { merge: true });
+
+    const { error: updateError } = await supabase
+      .from('config')
+      .upsert({
+        key: 'customerCodeCounter',
+        value: { lastNumber: nextNumber }
+      });
+
+    if (updateError) throw updateError;
+
     return formatCustomerCode(nextNumber);
-  });
+  } catch (error) {
+    console.error("Error allocating customer code in Supabase:", error);
+    // Fallback: use timestamp if everything fails
+    return formatCustomerCode(Math.floor(Date.now() / 1000) % 100000);
+  }
 }
 
 export async function reserveCustomerCodes(
-  db: Firestore,
   count: number,
   minLastNumber: number = 0
 ): Promise<{ startNumber: number; endNumber: number }> {
@@ -26,16 +42,32 @@ export async function reserveCustomerCodes(
     return { startNumber: 0, endNumber: 0 };
   }
 
-  const counterRef = doc(db, 'config', 'customerCodeCounter');
+  try {
+    const { data, error } = await supabase
+      .from('config')
+      .select('value')
+      .eq('key', 'customerCodeCounter')
+      .maybeSingle();
 
-  return runTransaction(db, async (tx) => {
-    const snap = await tx.get(counterRef);
-    const lastNumberRaw = snap.exists() ? Number((snap.data() as any).lastNumber || 0) : 0;
+    if (error) throw error;
+
+    const lastNumberRaw = data?.value?.lastNumber || 0;
     const lastNumber = Number.isFinite(lastNumberRaw) ? lastNumberRaw : 0;
     const base = Math.max(lastNumber, minLastNumber);
     const startNumber = base + 1;
     const endNumber = base + count;
-    tx.set(counterRef, { lastNumber: endNumber }, { merge: true });
+
+    await supabase
+      .from('config')
+      .upsert({
+        key: 'customerCodeCounter',
+        value: { lastNumber: endNumber }
+      });
+
     return { startNumber, endNumber };
-  });
+  } catch (error) {
+    console.error("Error reserving customer codes in Supabase:", error);
+    return { startNumber: 0, endNumber: 0 };
+  }
 }
+

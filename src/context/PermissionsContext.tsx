@@ -4,13 +4,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import type { RolePermissions } from '@/lib/types';
 import { initialPermissions } from '@/lib/permissions';
-import { getClientFirebase } from '@/lib/firebase-client';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from './AuthContext';
 import { useAudit } from './AuditContext';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 interface PermissionsContextType {
     permissions: RolePermissions | null;
@@ -27,37 +24,64 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
     const { toast } = useToast();
     const { user } = useAuth();
     const { logAction } = useAudit();
-    
-    useEffect(() => {
-        const { db } = getClientFirebase();
-        const permissionsRef = doc(db, 'config', 'rolePermissions');
-        const unsubscribe = onSnapshot(permissionsRef, async (docSnap) => {
-            if (docSnap.exists()) {
-                const stored = docSnap.data() as Partial<RolePermissions>;
-                setPermissions({ ...initialPermissions, ...(stored as any) });
-            } else {
-                await setDoc(permissionsRef, initialPermissions);
-                setPermissions(initialPermissions);
-            }
-            setIsLoading(false);
-        }, (error) => {
-            console.error("Failed to load permissions from Firestore:", error);
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: 'config/rolePermissions',
-                operation: 'get',
-            }));
-            setPermissions(initialPermissions); // Fallback
-            setIsLoading(false);
-        });
 
-        return () => unsubscribe();
-    }, [toast]);
+    useEffect(() => {
+        const fetchPermissions = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('config')
+                    .select('value')
+                    .eq('key', 'rolePermissions')
+                    .maybeSingle();
+
+                if (error) throw error;
+
+                if (data?.value) {
+                    setPermissions({ ...initialPermissions, ...(data.value as any) });
+                } else {
+                    // Initialize with defaults if not exists
+                    await supabase
+                        .from('config')
+                        .upsert({ key: 'rolePermissions', value: initialPermissions });
+                    setPermissions(initialPermissions);
+                }
+            } catch (error) {
+                console.error("Failed to load permissions from Supabase:", error);
+                setPermissions(initialPermissions); // Fallback
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchPermissions();
+
+        // Subscribe to real-time changes
+        const channel = supabase.channel('public:config:rolePermissions')
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'config',
+                filter: "key=eq.rolePermissions"
+            }, (payload) => {
+                if (payload.new && (payload.new as any).value) {
+                    setPermissions({ ...initialPermissions, ...((payload.new as any).value as any) });
+                }
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
 
     const updatePermissions = useCallback(async (newPermissions: RolePermissions) => {
         try {
-            const { db } = getClientFirebase();
-            const permissionsRef = doc(db, 'config', 'rolePermissions');
-            await setDoc(permissionsRef, newPermissions);
+            const { error } = await supabase
+                .from('config')
+                .upsert({ key: 'rolePermissions', value: newPermissions });
+
+            if (error) throw error;
+
             // Real-time listener will update the state
             logAction('Atualização de Permissões', 'As permissões de acesso dos perfis foram alteradas.', user);
             toast({
@@ -65,7 +89,7 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
                 description: "As regras de acesso foram atualizadas com sucesso.",
             });
         } catch (error) {
-            console.error("Error updating permissions in Firestore:", error);
+            console.error("Error updating permissions in Supabase:", error);
             toast({ title: "Erro", description: "Não foi possível salvar as permissões.", variant: "destructive" });
         }
     }, [toast, logAction, user]);
@@ -88,3 +112,4 @@ export const usePermissions = () => {
     }
     return context;
 };
+
