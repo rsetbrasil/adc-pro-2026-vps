@@ -172,11 +172,11 @@ export default function Home() {
                       <Link href={`/produtos/${product.id}`} className="block h-full">
                         <Card className="h-full overflow-hidden flex flex-col md:flex-row justify-between transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 border-2 border-transparent hover:border-accent/30">
                           <CardContent className="flex flex-col md:flex-row items-center text-center md:text-left p-6 gap-6 w-full">
-                            <div className="relative w-36 h-36 md:w-44 md:h-44 flex-shrink-0 rounded-lg overflow-hidden bg-muted/50">
+                            <div className="relative w-52 h-52 md:w-44 md:h-44 flex-shrink-0 rounded-lg overflow-hidden bg-muted/50 mx-auto">
                               <Badge
                                 className={`absolute top-2 left-2 z-10 ${product.onSale
-                                    ? 'bg-destructive text-destructive-foreground'
-                                    : 'bg-primary text-primary-foreground'
+                                  ? 'bg-destructive text-destructive-foreground'
+                                  : 'bg-primary text-primary-foreground'
                                   }`}
                               >
                                 {product.onSale ? '🏷️ Promoção' : '⭐ Destaque'}
