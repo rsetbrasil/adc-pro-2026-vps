@@ -516,15 +516,15 @@ export default function CheckoutForm() {
         <h3 className="text-xl font-semibold mb-4 font-headline">Resumo do Pedido</h3>
         <div className="space-y-4">
           {cartItemsWithDetails.map((item) => (
-            <div key={item.id} className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-4 flex-grow">
-                <div className="relative h-16 w-16 rounded-md overflow-hidden">
+            <div key={item.id} className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              <div className="flex items-start gap-3 flex-grow">
+                <div className="relative h-16 w-16 sm:h-16 sm:w-16 rounded-md overflow-hidden flex-shrink-0">
                   <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
                 </div>
-                <div className="flex-grow">
-                  <p className="font-semibold">{item.name}</p>
+                <div className="flex-grow min-w-0">
+                  <p className="font-semibold text-sm sm:text-base leading-tight">{item.name}</p>
                   <p className="text-sm text-muted-foreground">Qtd: {item.quantity}</p>
-                  <p className="text-xs text-accent font-semibold">(em até {item.maxInstallments}x)</p>
+                  <p className="text-sm text-accent font-bold">(em até {item.maxInstallments}x)</p>
                   {!item.hasEnoughStock && (
                     <div className="flex items-center gap-1 text-xs text-destructive mt-1">
                       <AlertTriangle className="h-3 w-3" />
@@ -533,8 +533,8 @@ export default function CheckoutForm() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <p className="font-semibold">{formatCurrency(item.price * item.quantity)}</p>
+              <div className="flex items-center justify-between sm:justify-end gap-2 pl-[76px] sm:pl-0">
+                <p className="font-semibold text-base">{formatCurrency(item.price * item.quantity)}</p>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeFromCart(item.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
