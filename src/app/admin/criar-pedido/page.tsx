@@ -421,7 +421,7 @@ export default function CreateOrderPage() {
                               <div className="flex flex-col items-start text-left min-w-0 w-full">
                                 <span className="truncate w-full">{selectedCustomer.name}</span>
                                 <span className="text-xs text-muted-foreground truncate w-full">
-                                  {selectedCustomer.code ? `${selectedCustomer.code} • ` : ''}
+                                  {selectedCustomer.code ? `${selectedCustomer.code.replace(/^CLI-/i, '')} • ` : ''}
                                   {secondary}
                                 </span>
                               </div>
@@ -445,7 +445,7 @@ export default function CreateOrderPage() {
                               <div className="flex flex-col items-start text-left min-w-0">
                                 <span className="truncate w-full">{c.name}</span>
                                 <span className="text-xs text-muted-foreground truncate w-full">
-                                  {c.code ? `${c.code} • ` : ''}
+                                  {c.code ? `${c.code.replace(/^CLI-/i, '')} • ` : ''}
                                   {c.cpf || c.phone}
                                 </span>
                               </div>

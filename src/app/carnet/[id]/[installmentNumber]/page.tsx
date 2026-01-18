@@ -29,7 +29,7 @@ const ReceiptContent = ({ order, installment, settings, via }: { order: Order; i
     const { products } = useData();
 
     const customerNameWithCode = useMemo(() => {
-        const code = (order.customer.code || '').trim();
+        const code = (order.customer.code || '').trim().replace(/^CLI-/i, '');
         const name = (order.customer.name || '').trim();
         if (!code) return name.toUpperCase();
         return `${name} - ${code}`.toUpperCase();

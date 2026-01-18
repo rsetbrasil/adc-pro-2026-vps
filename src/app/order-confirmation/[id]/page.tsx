@@ -190,7 +190,7 @@ export default function OrderConfirmationPage() {
           <p className="font-semibold text-muted-foreground">Número do Pedido: <Badge variant="secondary">{order.id}</Badge></p>
           {order.customer.code && (
             <p className="font-semibold text-muted-foreground">
-              Seu Código de Cliente: <Badge variant="secondary">{order.customer.code}</Badge>
+              Seu Código de Cliente: <Badge variant="secondary">{order.customer.code.replace(/^CLI-/i, '')}</Badge>
             </p>
           )}
           {settings.storePhone && (
@@ -200,7 +200,7 @@ export default function OrderConfirmationPage() {
                   [
                     '*Pedido do Catálogo Online*',
                     `*Cód. Pedido:* ${order.id}`,
-                    order.customer.code ? `*Cód. Cliente:* ${order.customer.code}` : '*Cód. Cliente:* -',
+                    order.customer.code ? `*Cód. Cliente:* ${order.customer.code.replace(/^CLI-/i, '')}` : '*Cód. Cliente:* -',
                     `*Cliente:* ${order.customer.name}`,
                     order.customer.cpf ? `*CPF:* ${order.customer.cpf}` : '',
                     `*Telefone:* ${order.customer.phone}`,
@@ -289,7 +289,7 @@ export default function OrderConfirmationPage() {
             <h3 className="font-semibold text-lg mb-4">Informações de Entrega</h3>
             <div className="text-sm text-muted-foreground">
               <p className="font-semibold text-foreground">{order.customer.name}</p>
-              {order.customer.code && <p>Código do Cliente: {order.customer.code}</p>}
+              {order.customer.code && <p>Código do Cliente: {order.customer.code.replace(/^CLI-/i, '')}</p>}
               <p>{`${order.customer.address}, ${order.customer.number}`}</p>
               <p>{`${order.customer.neighborhood}, ${order.customer.city}, ${order.customer.state} - ${order.customer.zip}`}</p>
               <p>Email: {order.customer.email}</p>

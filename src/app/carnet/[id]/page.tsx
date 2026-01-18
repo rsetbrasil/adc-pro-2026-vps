@@ -52,7 +52,7 @@ const CarnetContent = ({ order, settings, pixPayload, productCodeById }: { order
         });
     }, [order.items, productCodeById]);
     const customerNameWithCode = useMemo(() => {
-        const code = (order.customer.code || '').trim();
+        const code = (order.customer.code || '').trim().replace(/^CLI-/i, '');
         if (!code) return order.customer.name;
         return `${order.customer.name} - ${code}`;
     }, [order.customer.code, order.customer.name]);
