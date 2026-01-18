@@ -31,9 +31,45 @@ const loadCache = <T,>(key: string): T | null => {
 
 const saveCache = (key: string, data: unknown) => {
   if (typeof window === 'undefined') return;
+
+  // Preparar versão compacta para produtos
+  let dataToSave = data;
+  if (key === 'productsCache' && Array.isArray(data)) {
+    dataToSave = data.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      price: p.price,
+      originalPrice: p.originalPrice,
+      imageUrl: p.imageUrl,
+      imageUrls: p.imageUrls,
+      category: p.category,
+      subcategory: p.subcategory,
+      onSale: p.onSale,
+      stock: p.stock,
+      featured: p.featured,
+      isHidden: p.isHidden,
+      code: p.code,
+      createdAt: p.createdAt,
+    }));
+  }
+
   try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch {
+    localStorage.setItem(key, JSON.stringify(dataToSave));
+  } catch (e: any) {
+    console.warn(`[Cache] Erro ao salvar ${key}:`, e?.name || e?.message || e);
+    if (e?.name === 'QuotaExceededError') {
+      try {
+        // Limpar caches para liberar espaço
+        localStorage.removeItem('ordersCache');
+        localStorage.removeItem('customersCache');
+        localStorage.removeItem('adcpro/storeSettingsCache/v1');
+        localStorage.removeItem(key);
+        localStorage.setItem(key, JSON.stringify(dataToSave));
+      } catch {
+        console.warn(`[Cache] Não foi possível salvar ${key} mesmo após limpar`);
+      }
+    }
   }
 };
 
