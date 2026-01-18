@@ -147,7 +147,7 @@ const CarnetContent = ({ order, settings, pixPayload, productCodeById }: { order
                             {productsList.map((item) => (
                                 <div key={item.key} className="break-words">
                                     <span>
-                                        {item.code} - {item.name}
+                                        {item.code.replace(/^ITEM-/i, '')} - {item.name}
                                     </span>
                                     {item.quantity > 1 && <span> (x{item.quantity})</span>}
                                 </div>

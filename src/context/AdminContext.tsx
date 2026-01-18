@@ -813,7 +813,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
   const addProduct = useCallback(async (productData: Omit<Product, 'id' | 'data-ai-hint' | 'createdAt'>, logAction: LogAction, user: User | null) => {
     const newProductId = `PROD-${Date.now().toString().slice(-6)}`;
-    const newProductCode = `ITEM-${Date.now().toString().slice(-6)}`;
+    const newProductCode = Date.now().toString().slice(-6);
     const now = new Date().toISOString();
 
     const newProduct: Partial<Product> = {
