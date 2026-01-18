@@ -647,15 +647,9 @@ export default function CheckoutForm() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row-reverse gap-4 justify-end">
+          <div className="flex justify-end">
             <Button type="submit" size="lg" className="w-full sm:w-auto text-lg" disabled={!isCartValid || form.formState.isSubmitting}>
               Finalizar Compra
-            </Button>
-            <Button type="button" variant="outline" size="lg" asChild>
-              <Link href="/#catalog">
-                <ArrowLeft className="mr-2 h-5 w-5" />
-                Ver Catálogo
-              </Link>
             </Button>
           </div>
         </form>
