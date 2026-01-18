@@ -224,8 +224,9 @@ export default function ConfiguracaoPage() {
       return;
     }
     setIsAsaasLoading(true);
-    supabase.from('config').select('value').eq('key', 'asaasSettings').maybeSingle()
-      .then(({ data, error }) => {
+    const fetchAsaasSettings = async () => {
+      try {
+        const { data, error } = await supabase.from('config').select('value').eq('key', 'asaasSettings').maybeSingle();
         if (error || !data?.value) return;
         const asaasData = data.value as AsaasSettings;
         asaasForm.reset({
@@ -233,9 +234,13 @@ export default function ConfiguracaoPage() {
           accessToken: asaasData.accessToken || '',
           webhookToken: asaasData.webhookToken || '',
         });
-      })
-      .finally(() => setIsAsaasLoading(false));
+      } finally {
+        setIsAsaasLoading(false);
+      }
+    };
+    fetchAsaasSettings();
   }, [user?.role, asaasForm]);
+
 
   useEffect(() => {
     if (user?.role !== 'admin') {
