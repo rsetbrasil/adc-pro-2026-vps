@@ -7,6 +7,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'placehold.co',
       },
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
     ],
   },
   serverExternalPackages: ['firebase-admin'],
@@ -15,6 +19,31 @@ const nextConfig = {
       { source: '/@vite/client', destination: '/__vite_client.js' },
     ];
   },
+  async headers() {
+    return [
+      {
+        // Desabilitar cache para rotas do admin
+        source: '/admin/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          },
+        ],
+      },
+      {
+        // Desabilitar cache para API routes
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
+
