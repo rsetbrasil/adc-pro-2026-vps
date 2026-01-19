@@ -539,13 +539,16 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
       totalVendido += order.total;
 
-      order.items.forEach(item => {
-        const product = products.find(p => p.id === item.id);
-        const cost = product?.cost || 0;
-        const itemRevenue = item.price * item.quantity;
-        const itemCost = cost * item.quantity;
-        lucroBruto += (itemRevenue - itemCost);
-      });
+      // Verificar se items existe antes de iterar
+      if (order.items && Array.isArray(order.items)) {
+        order.items.forEach(item => {
+          const product = products.find(p => p.id === item.id);
+          const cost = product?.cost || 0;
+          const itemRevenue = item.price * item.quantity;
+          const itemCost = cost * item.quantity;
+          lucroBruto += (itemRevenue - itemCost);
+        });
+      }
 
       if (order.paymentMethod === 'Crediário') {
         (order.installmentDetails || []).forEach(inst => {
