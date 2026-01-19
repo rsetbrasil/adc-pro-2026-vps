@@ -689,15 +689,6 @@ Não esqueça de enviar o comprovante!`;
                                                             <TableRow key={order.id} className="text-sm">
                                                                 <TableCell className="p-2 font-medium font-mono text-xs">{order.id}</TableCell>
                                                                 <TableCell className="p-2 whitespace-nowrap">
-                                                                    {order.source === 'Online' && (
-                                                                        <div className="flex items-center gap-2">
-                                                                            <span className="relative flex h-3 w-3">
-                                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                                                                            </span>
-                                                                            <span className="font-semibold text-green-600">Catálogo Online</span>
-                                                                        </div>
-                                                                    )}
                                                                     <span className="text-muted-foreground">{format(new Date(order.date), "dd/MM/yy HH:mm")}</span>
                                                                 </TableCell>
                                                                 <TableCell className="p-2">

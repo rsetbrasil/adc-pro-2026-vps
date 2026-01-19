@@ -257,6 +257,13 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
   // Effect for fetching admin-specific data
   useEffect(() => {
+    // Solicitar permissão de notificações do sistema
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        console.log("Permissão de notificação:", permission);
+      }).catch(err => console.error("Erro ao solicitar permissão de notificação:", err));
+    }
+
     const unsubscribes: (() => void)[] = [];
 
     const canNotify = !!user && ['admin', 'gerente', 'vendedor'].includes(user.role);
@@ -345,10 +352,31 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
             const customerName = newOrder.customer?.name || 'Cliente';
             const sourceLabel = newOrder.source === 'Online' ? '🌐 Catálogo' : '📝 Manual';
 
+            // Toast In-App
             toast({
               title: `Novo Pedido ${sourceLabel}`,
               description: `${customerName} • ${formatCurrency(newOrder.total || 0)} • Pedido ${newOrder.id}`,
             });
+
+            // Notificação do Sistema (Windows/Browser)
+            if (newOrder.source === 'Online' && 'Notification' in window && Notification.permission === 'granted') {
+              try {
+                const notification = new Notification(`Novo Pedido Online: ${newOrder.id}`, {
+                  body: `${customerName} fez um pedido de ${formatCurrency(newOrder.total || 0)}.\nClique para ver detalhes.`,
+                  icon: '/icon-192x192.png', // Tenta usar o ícone do PWA se existir, ou padrão
+                  tag: newOrder.id, // Evita duplicatas nativas
+                });
+
+                notification.onclick = function () {
+                  window.focus();
+                  // Opcional: navegar para o pedido específico se possível
+                  // window.location.href = `/admin/pedidos?id=${newOrder.id}`;
+                  notification.close();
+                };
+              } catch (e) {
+                console.error("Erro ao exibir notificação do sistema:", e);
+              }
+            }
           }
         } else if (payload.eventType === 'UPDATE') {
           const updatedRaw = payload.new;
