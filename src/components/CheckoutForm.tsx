@@ -552,11 +552,11 @@ export default function CheckoutForm() {
         const message = messageParts.join('\n');
         const encodedMessage = encodeURIComponent(message);
         const webUrl = `https://wa.me/55${storePhone}?text=${encodedMessage}`;
-        window.open(webUrl, '_blank');
+        // window.open(webUrl, '_blank'); // REMOVED: Now handled in Order Confirmation page
       }
 
       clearCart();
-      router.push(`/order-confirmation/${orderToSave.id}`);
+      router.push(`/order-confirmation/${orderToSave.id}?autoWhatsapp=true`);
 
     } catch (error) {
       console.error("Failed to process order:", error);

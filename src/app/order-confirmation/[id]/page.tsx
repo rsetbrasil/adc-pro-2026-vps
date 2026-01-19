@@ -5,7 +5,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useCart } from '@/context/CartContext';
 import { useSettings } from '@/context/SettingsContext';
-import { useRouter, useParams } from 'next/navigation';
+import { useData } from '@/context/DataContext';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -27,8 +28,11 @@ const formatCurrency = (value: number) => {
 export default function OrderConfirmationPage() {
   const { lastOrder } = useCart();
   const { settings } = useSettings();
+  const { products } = useData();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const autoWhatsapp = searchParams.get('autoWhatsapp');
   const [order, setOrder] = useState<Order | null>(null);
   const [isOrdersLoading, setIsLoading] = useState(true);
   const [asaasPixPayload, setAsaasPixPayload] = useState<string | null>(null);
@@ -141,6 +145,67 @@ export default function OrderConfirmationPage() {
     };
   }, [order]);
 
+  const whatsappUrl = useMemo(() => {
+    if (!order || !settings.storePhone) return '';
+
+    const storePhone = settings.storePhone.replace(/\D/g, '');
+
+    // Reconstruct cart items with details for maxInstallments
+    const orderItemsWithDetails = order.items.map(item => {
+      const productInfo = products.find(p => p.id === item.id);
+      return {
+        ...item,
+        maxInstallments: productInfo?.maxInstallments ?? 1,
+      };
+    });
+
+    const maxAllowedInstallments = orderItemsWithDetails.length > 0
+      ? Math.min(...orderItemsWithDetails.map(item => item.maxInstallments))
+      : 1;
+
+    const productsSummary = order.items.map(item =>
+      `${item.name}\nValor: ${formatCurrency(item.price)}\nQtd: ${item.quantity} un\nSubtotal: ${formatCurrency(item.price * item.quantity)}`
+    ).join('\n\n');
+
+    const messageParts = [
+      `*Novo Pedido do Catálogo Online!*`,
+      `*Cód. Pedido:* ${order.id}`,
+      `*Vendedor:* ${order.sellerName || 'Não atribuído'}`,
+      ``,
+      `*PRODUTOS:*`,
+      productsSummary,
+      ``,
+      `---------------------------`,
+      ``,
+      `*Total da Compra:* ${formatCurrency(order.total)}`,
+      `*Forma de Pagamento:* ${order.paymentMethod}`,
+      `*Condição Sugerida:* Até ${maxAllowedInstallments}x`,
+      `*Observação:* ${order.observations || '-'}`,
+      ``,
+      `---------------------------`,
+      `*DADOS DO CLIENTE:*`,
+      `${order.customer.name}`,
+      `${order.customer.phone}`,
+      `CPF: ${order.customer.cpf || '-'}`,
+      `Cód. Cliente: ${order.customer.code || '-'}`,
+      ``,
+      `*ENDEREÇO:*`,
+      `CEP: ${order.customer.zip}`,
+      `${order.customer.address}, Nº ${order.customer.number}`,
+      `${order.customer.neighborhood} - ${order.customer.city}/${order.customer.state}`,
+    ];
+
+    const message = messageParts.join('\n');
+    return `https://wa.me/55${storePhone}?text=${encodeURIComponent(message)}`;
+  }, [order, settings.storePhone, products]);
+
+  useEffect(() => {
+    if (order && autoWhatsapp && whatsappUrl) {
+      // Redireciona automaticamente
+      window.location.href = whatsappUrl;
+    }
+  }, [order, autoWhatsapp, whatsappUrl]);
+
   const pixPayload = useMemo(() => {
     if (!order) return null;
     if (order.paymentMethod !== 'Pix' && order.paymentMethod !== 'Crediário') return null;
@@ -196,18 +261,7 @@ export default function OrderConfirmationPage() {
           {settings.storePhone && (
             <div className="mt-4 flex justify-center">
               <a
-                href={`https://wa.me/55${settings.storePhone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                  [
-                    '*Pedido do Catálogo Online*',
-                    `*Cód. Pedido:* ${order.id}`,
-                    order.customer.code ? `*Cód. Cliente:* ${order.customer.code.replace(/^CLI-/i, '')}` : '*Cód. Cliente:* -',
-                    `*Cliente:* ${order.customer.name}`,
-                    order.customer.cpf ? `*CPF:* ${order.customer.cpf}` : '',
-                    `*Telefone:* ${order.customer.phone}`,
-                  ]
-                    .filter(Boolean)
-                    .join('\n')
-                )}`}
+                href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -303,6 +357,6 @@ export default function OrderConfirmationPage() {
           </Link>
         </CardFooter>
       </Card>
-    </div>
+    </div >
   );
 }

@@ -178,7 +178,7 @@ export default function OrdersAdminPage() {
     }, []);
 
     const sellersForFilter = useMemo(() => {
-        return users.filter(u => u.role === 'vendedor' || u.role === 'admin' || u.role === 'gerente');
+        return users.filter(u => u.role === 'vendedor' || u.role === 'admin' || u.role === 'gerente' || u.role === 'vendedor_externo');
     }, [users]);
 
     const assignableSellers = useMemo(() => {
