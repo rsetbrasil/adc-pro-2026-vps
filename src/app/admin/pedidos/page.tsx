@@ -20,6 +20,7 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogFooter,
 } from '@/components/ui/dialog';
 import {
@@ -1004,9 +1005,9 @@ Não esqueça de enviar o comprovante!`;
                         <>
                             <DialogHeader>
                                 <DialogTitle>Pedido: {selectedOrder.id}</DialogTitle>
-                                <CardDescription>
+                                <DialogDescription>
                                     Gerencie o status, faturamento e detalhes do pedido.
-                                </CardDescription>
+                                </DialogDescription>
                             </DialogHeader>
                             <div className="flex-grow overflow-y-auto p-1 pr-4 -mr-4 space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
