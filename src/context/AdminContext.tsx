@@ -261,10 +261,26 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
     const canNotify = !!user && ['admin', 'gerente', 'vendedor'].includes(user.role);
 
-    const mapOrderFromDB = (data: any): Order => ({
-      ...data,
-      createdAt: data.created_at || data.createdAt,
-    });
+    const mapOrderFromDB = (data: any): Order => {
+      if (!data) return {} as Order;
+
+      // Mapeamento recursivo para garantir que parcelas e seus pagamentos sejam arrays
+      const rawInstallments = data.installmentDetails || data.installment_details || [];
+      const installmentDetails = Array.isArray(rawInstallments) ? rawInstallments.map((inst: any) => ({
+        ...inst,
+        payments: Array.isArray(inst.payments) ? inst.payments : []
+      })) : [];
+
+      return {
+        ...data,
+        items: Array.isArray(data.items) ? data.items : [],
+        installmentDetails,
+        customer: data.customer || { name: 'Cliente', cpf: '', phone: '', address: '', city: '' },
+        createdAt: data.created_at || data.createdAt,
+        total: typeof data.total === 'number' ? data.total : (Number(data.total) || 0),
+        status: data.status || 'Processando',
+      };
+    };
 
     const fetchCollection = async (table: string, setter: React.Dispatch<React.SetStateAction<any[]>>, orderByField = 'created_at', mapper?: (data: any) => any) => {
       try {
@@ -335,9 +351,15 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
             });
           }
         } else if (payload.eventType === 'UPDATE') {
-          const updatedOrder = mapOrderFromDB(payload.new);
-          console.log("✏️ Pedido atualizado via Real-time:", updatedOrder.id);
-          setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+          const updatedRaw = payload.new;
+          console.log("✏️ Pedido atualizado via Real-time:", updatedRaw.id);
+          setOrders(prev => prev.map(o => {
+            if (o.id === updatedRaw.id) {
+              // Mescla os dados novos com os antigos e re-mapeia para garantir segurança
+              return mapOrderFromDB({ ...o, ...updatedRaw });
+            }
+            return o;
+          }));
         } else if (payload.eventType === 'DELETE') {
           console.log("🗑️ Pedido removido via Real-time:", payload.old.id);
           setOrders(prev => prev.filter(o => o.id !== payload.old.id));
@@ -1681,8 +1703,8 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const { error } = await supabase.from('orders').update({
-      installment_details: updatedInstallments,
-      installment_value: dataToUpdate.installmentValue,
+      installmentDetails: updatedInstallments,
+      installmentValue: dataToUpdate.installmentValue,
       total: dataToUpdate.total,
       discount: dataToUpdate.discount
     }).eq('id', orderId);

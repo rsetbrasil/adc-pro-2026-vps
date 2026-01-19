@@ -99,8 +99,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           const newProduct = mapProductFromDB(payload.new);
           setProducts(prev => [...prev, newProduct]);
         } else if (payload.eventType === 'UPDATE') {
-          const updatedProduct = mapProductFromDB(payload.new);
-          setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+          const updatedRaw = payload.new;
+          setProducts(prev => prev.map(p => p.id === updatedRaw.id ? { ...p, ...updatedRaw } : p));
         } else if (payload.eventType === 'DELETE') {
           const deletedId = oldRecord?.id;
           if (deletedId) {

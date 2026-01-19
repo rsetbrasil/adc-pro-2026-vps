@@ -174,11 +174,27 @@ export default function CheckoutForm() {
           if (error) throw error;
 
           if (customerData) {
-            form.reset({
-              ...customerData,
+            // Sanitizar dados nulos para strings vazias para não quebrar o formulário
+            const sanitizedData = {
+              name: customerData.name || '',
               cpf: customerData.cpf || maskedValue,
+              phone: customerData.phone || '',
+              phone2: customerData.phone2 || '',
+              phone3: customerData.phone3 || '',
+              email: customerData.email || '',
+              zip: customerData.zip || '',
+              address: customerData.address || '',
+              number: customerData.number || '',
+              complement: customerData.complement || '',
+              neighborhood: customerData.neighborhood || '',
+              city: customerData.city || 'Fortaleza',
+              state: customerData.state || 'CE',
               code: customerData.code || '',
-            });
+              sellerId: customerData.sellerId || undefined,
+              sellerName: customerData.sellerName || undefined,
+            };
+
+            form.reset(sanitizedData);
             setIsNewCustomer(false);
             toast({
               title: "Cliente Encontrado!",
@@ -193,12 +209,27 @@ export default function CheckoutForm() {
               .maybeSingle();
 
             if (trashData?.data) {
-              const existingCustomer = trashData.data as CustomerInfo;
-              form.reset({
-                ...existingCustomer,
-                cpf: existingCustomer.cpf || maskedValue,
-                code: existingCustomer.code || '',
-              });
+              const customerData = trashData.data as CustomerInfo;
+              const sanitizedData = {
+                name: customerData.name || '',
+                cpf: customerData.cpf || maskedValue,
+                phone: customerData.phone || '',
+                phone2: customerData.phone2 || '',
+                phone3: customerData.phone3 || '',
+                email: customerData.email || '',
+                zip: customerData.zip || '',
+                address: customerData.address || '',
+                number: customerData.number || '',
+                complement: customerData.complement || '',
+                neighborhood: customerData.neighborhood || '',
+                city: customerData.city || 'Fortaleza',
+                state: customerData.state || 'CE',
+                code: customerData.code || '',
+                sellerId: customerData.sellerId || undefined,
+                sellerName: customerData.sellerName || undefined,
+              };
+
+              form.reset(sanitizedData);
               setIsNewCustomer(false);
               toast({
                 title: "Cliente Encontrado na Lixeira!",
@@ -240,6 +271,20 @@ export default function CheckoutForm() {
   }, [cartItemsWithDetails]);
 
   const isCartValid = cartItemsWithDetails.every(item => item.hasEnoughStock);
+
+  // Debug logs
+  useEffect(() => {
+    if (!isCartValid && cartItems.length > 0) {
+      console.warn("[CHECKOUT] Carrinho inválido (falta estoque):", cartItemsWithDetails.filter(i => !i.hasEnoughStock));
+    }
+  }, [isCartValid, cartItems.length, cartItemsWithDetails]);
+
+  useEffect(() => {
+    const errors = form.formState.errors;
+    if (Object.keys(errors).length > 0) {
+      console.warn("[CHECKOUT] Erros de validação no formulário:", errors);
+    }
+  }, [form.formState.errors]);
 
   const sellerName = form.watch('sellerName');
   const paymentMethod = form.watch('paymentMethod');
@@ -295,6 +340,7 @@ export default function CheckoutForm() {
   }
 
   async function onSubmit(values: z.infer<typeof checkoutSchema>) {
+    console.log("[CHECKOUT] Iniciando submissão do pedido...", values);
     const { sellerId: formSellerId, sellerName: formSellerName, paymentMethod: formPaymentMethod, ...customerValues } = values;
 
     const customerData: CustomerInfo = {
