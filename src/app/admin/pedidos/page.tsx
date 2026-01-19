@@ -1129,7 +1129,7 @@ Não esqueça de enviar o comprovante!`;
                                             <p><span className="font-semibold">Criado por:</span> {selectedOrder.createdByName || 'Sistema'}</p>
                                             <p><span className="font-semibold">Origem:</span> {selectedOrder.source === 'Online' ? '🌐 Catálogo Online' : '📝 Manual'}</p>
                                             <p><span className="font-semibold">Data/Hora:</span> {format(parseISO(selectedOrder.createdAt || selectedOrder.date), "dd/MM/yyyy 'às' HH:mm")}</p>
-                                            <p><span className="font-semibold">IP:</span> {selectedOrder.ip || '-'}</p>
+                                            <p><span className="font-semibold">IP:</span> {selectedOrder.createdIp || '-'}</p>
                                         </div>
                                     </CardContent>
                                 </Card>
