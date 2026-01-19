@@ -206,10 +206,24 @@ const CarnetContent = ({ order, settings, pixPayload, productCodeById }: { order
                                             <td className="px-2 py-1 print:px-1 print:py-0.5 font-semibold">{format(parseISO(installment.dueDate), 'dd/MM/yy')}</td>
                                             <td className="px-2 py-1 print:px-1 print:py-0.5 text-right font-mono font-semibold">{formatCurrency(installment.amount)}</td>
                                             <td className="px-2 py-1 print:px-1 print:py-0.5 border-l">
-                                                {installment.status === 'Pago'
-                                                    ? (installment.paymentDate ? format(parseISO(installment.paymentDate), 'dd/MM/yy') : 'Pago')
-                                                    : '\u00A0'
-                                                }
+                                                {installment.status === 'Pago' ? (
+                                                    <>
+                                                        {payments.length > 0 ? (
+                                                            <>
+                                                                <div className="text-xs print-default:hidden">
+                                                                    {payments.map((p, idx) => (
+                                                                        <div key={p.id || idx}>
+                                                                            Pago - {p.method} - {format(parseISO(p.date), 'dd/MM/yy HH:mm')}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                                <div className="hidden print-default:block">Pago</div>
+                                                            </>
+                                                        ) : (
+                                                            installment.paymentDate ? format(parseISO(installment.paymentDate), 'dd/MM/yy') : 'Pago'
+                                                        )}
+                                                    </>
+                                                ) : '\u00A0'}
                                             </td>
                                             <td className="px-2 py-1 text-center print:hidden">
                                                 {hasPayments && (
