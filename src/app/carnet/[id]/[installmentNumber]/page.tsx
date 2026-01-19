@@ -141,7 +141,6 @@ const ReceiptContent = ({ order, installment, settings, via }: { order: Order; i
                     {(order.downPayment || 0) > 0 && <p>ENTRADA: -{formatCurrency(order.downPayment || 0)}</p>}
                     {(order.discount || 0) > 0 && <p>DESCONTO: -{formatCurrency(order.discount || 0)}</p>}
                     <p className="receipt-main-values text-base font-semibold">VALOR DO PEDIDO: {formatCurrency(totalPedido)}</p>
-                    <p className="receipt-main-values text-base font-extrabold">VALOR FINANCIADO: {formatCurrency(valorFinanciado)}</p>
                 </div>
             </div>
 
@@ -401,7 +400,7 @@ export default function SingleInstallmentPage() {
         <div className="bg-muted/30 print:bg-white">
             <div className="container mx-auto py-8 print:p-0">
                 <header className="flex flex-col sm:flex-row justify-between items-center mb-8 print-hidden gap-4">
-                    <Button variant="ghost" onClick={() => router.back()}>
+                    <Button variant="ghost" onClick={() => router.push('/admin/pedidos')}>
                         <ArrowLeft className="mr-2 h-4 w-4" />
                         Voltar
                     </Button>
