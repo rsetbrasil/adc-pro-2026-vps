@@ -35,7 +35,8 @@ const saveCache = (key: string, data: unknown) => {
   // Preparar versão compacta para produtos
   let dataToSave = data;
   if (key === 'productsCache' && Array.isArray(data)) {
-    dataToSave = data.map((p: any) => ({
+    // Limitar a 500 produtos e apenas campos essenciais
+    dataToSave = data.slice(0, 500).map((p: any) => ({
       id: p.id,
       name: p.name,
       description: p.description,
@@ -58,20 +59,20 @@ const saveCache = (key: string, data: unknown) => {
     localStorage.setItem(key, JSON.stringify(dataToSave));
   } catch (e: any) {
     console.warn(`[Cache] Erro ao salvar ${key}:`, e?.name || e?.message || e);
-    if (e?.name === 'QuotaExceededError') {
-      try {
-        // Limpar caches para liberar espaço
-        localStorage.removeItem('ordersCache');
-        localStorage.removeItem('customersCache');
-        localStorage.removeItem('adcpro/storeSettingsCache/v1');
-        localStorage.removeItem(key);
-        localStorage.setItem(key, JSON.stringify(dataToSave));
-      } catch {
-        console.warn(`[Cache] Não foi possível salvar ${key} mesmo após limpar`);
-      }
+    // Limpar todos os caches para liberar espaço (não tentar salvar novamente)
+    try {
+      localStorage.removeItem('ordersCache');
+      localStorage.removeItem('customersCache');
+      localStorage.removeItem('productsCache');
+      localStorage.removeItem('categoriesCache');
+      localStorage.removeItem('adcpro/storeSettingsCache/v1');
+      localStorage.removeItem(key);
+    } catch {
+      // Ignora se não conseguir limpar
     }
   }
 };
+
 
 export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [products, setProducts] = useState<Product[]>([]);

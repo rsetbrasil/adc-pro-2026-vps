@@ -190,31 +190,33 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   const saveCache = (key: string, data: unknown) => {
     if (typeof window === 'undefined') return;
     try {
-      // Limitar pedidos para evitar estouro do localStorage (limite ~5MB)
+      // Limitar dados para evitar estouro do localStorage (limite ~5MB)
       let dataToSave = data;
       if (key === 'ordersCache' && Array.isArray(data)) {
         // Guardar apenas os 100 pedidos mais recentes para não estourar localStorage
         dataToSave = data.slice(0, 100);
       }
+      if (key === 'customersCache' && Array.isArray(data)) {
+        // Limitar customers a 200 registros
+        dataToSave = data.slice(0, 200);
+      }
       localStorage.setItem(key, JSON.stringify(dataToSave));
     } catch (e: any) {
       // Geralmente QuotaExceededError quando localStorage está cheio
       console.warn(`[Cache] Erro ao salvar ${key}:`, e?.name || e?.message || e);
-      // Tentar limpar caches menos importantes e tentar novamente
-      if (e?.name === 'QuotaExceededError') {
-        try {
-          // Remover caches menos críticos para liberar espaço
-          localStorage.removeItem('customersCache');
-          localStorage.removeItem('categoriesCache');
-          localStorage.removeItem(key);
-          // Tentar salvar novamente com menos dados
-          if (key === 'ordersCache' && Array.isArray(data)) {
-            localStorage.setItem(key, JSON.stringify(data.slice(0, 50)));
-          }
-        } catch { }
+      // Limpar todos os caches para liberar espaço
+      try {
+        localStorage.removeItem('customersCache');
+        localStorage.removeItem('categoriesCache');
+        localStorage.removeItem('ordersCache');
+        localStorage.removeItem('productsCache');
+        localStorage.removeItem(key);
+      } catch {
+        // Se até isso falhar, não há nada mais a fazer
       }
     }
   };
+
 
   // Admin data states, now managed here
   const [orders, setOrders] = useState<Order[]>([]);
