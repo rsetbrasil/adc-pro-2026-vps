@@ -192,7 +192,7 @@ export default function CheckoutForm() {
               code: customerData.code || '',
               sellerId: customerData.sellerId || undefined,
               sellerName: customerData.sellerName || undefined,
-              paymentMethod: 'Crediário',
+              paymentMethod: 'Crediário' as const,
               observations: form.getValues('observations') || '',
             };
 
@@ -229,7 +229,7 @@ export default function CheckoutForm() {
                 code: customerData.code || '',
                 sellerId: customerData.sellerId || undefined,
                 sellerName: customerData.sellerName || undefined,
-                paymentMethod: 'Crediário',
+                paymentMethod: 'Crediário' as const,
                 observations: form.getValues('observations') || '',
               };
 
