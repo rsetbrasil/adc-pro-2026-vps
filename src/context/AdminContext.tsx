@@ -303,7 +303,16 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         if (payload.eventType === 'INSERT') {
           const newOrder = mapOrderFromDB(payload.new);
           console.log("📦 Novo pedido inserido via Real-time:", newOrder.id, newOrder.customer?.name);
-          setOrders(prev => [newOrder, ...prev]);
+
+          // Evitar duplicatas - só adiciona se não existir
+          setOrders(prev => {
+            const exists = prev.some(o => o.id === newOrder.id);
+            if (exists) {
+              console.log("⚠️ Pedido já existe na lista, ignorando duplicata:", newOrder.id);
+              return prev;
+            }
+            return [newOrder, ...prev];
+          });
 
           // Notification Logic - Agora notifica TODOS os pedidos
           if (canNotify) {
