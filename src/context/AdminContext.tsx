@@ -176,49 +176,8 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // Cache helpers para carregamento instantâneo
-  const loadCache = <T,>(key: string): T | null => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? (JSON.parse(raw) as T) : null;
-    } catch {
-      return null;
-    }
-  };
 
-  const saveCache = (key: string, data: unknown) => {
-    if (typeof window === 'undefined') return;
-    try {
-      // Limitar dados para evitar estouro do localStorage (limite ~5MB)
-      let dataToSave = data;
-      if (key === 'ordersCache' && Array.isArray(data)) {
-        // Guardar apenas os 100 pedidos mais recentes para não estourar localStorage
-        dataToSave = data.slice(0, 100);
-      }
-      if (key === 'customersCache' && Array.isArray(data)) {
-        // Limitar customers a 200 registros
-        dataToSave = data.slice(0, 200);
-      }
-      localStorage.setItem(key, JSON.stringify(dataToSave));
-    } catch (e: any) {
-      // Geralmente QuotaExceededError quando localStorage está cheio
-      console.warn(`[Cache] Erro ao salvar ${key}:`, e?.name || e?.message || e);
-      // Limpar todos os caches para liberar espaço
-      try {
-        localStorage.removeItem('customersCache');
-        localStorage.removeItem('categoriesCache');
-        localStorage.removeItem('ordersCache');
-        localStorage.removeItem('productsCache');
-        localStorage.removeItem(key);
-      } catch {
-        // Se até isso falhar, não há nada mais a fazer
-      }
-    }
-  };
-
-
-  // Admin data states, now managed here
+  // Admin data states
   const [orders, setOrders] = useState<Order[]>([]);
   const [commissionPayments, setCommissionPayments] = useState<CommissionPayment[]>([]);
   const [stockAudits, setStockAudits] = useState<StockAudit[]>([]);
@@ -226,10 +185,6 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [customers, setCustomers] = useState<CustomerInfo[]>([]);
   const [deletedCustomers, setDeletedCustomers] = useState<CustomerInfo[]>([]);
-
-  // Refs para manter última versão boa dos dados (para cache)
-  const lastGoodOrdersRef = useRef<Order[]>([]);
-  const lastGoodCustomersRef = useRef<CustomerInfo[]>([]);
 
   const fetchAll = useCallback(async (table: string, select = '*', orderField?: string, ascending = true) => {
     let allData: any[] = [];
@@ -265,20 +220,10 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const fetchCustomers = useCallback(async () => {
-    // Carregar cache primeiro para exibição instantânea
-    const cachedCustomers = loadCache<CustomerInfo[]>('customersCache');
-    if (cachedCustomers && cachedCustomers.length > 0) {
-      setCustomers(cachedCustomers);
-      lastGoodCustomersRef.current = cachedCustomers;
-    }
-
-    // Buscar dados atualizados do Supabase
     try {
       const data = await fetchAll('customers', '*', 'name', true);
       const customersData = data as CustomerInfo[];
       setCustomers(customersData);
-      saveCache('customersCache', customersData);
-      lastGoodCustomersRef.current = customersData;
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
@@ -315,29 +260,6 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     const unsubscribes: (() => void)[] = [];
 
     const canNotify = !!user && ['admin', 'gerente', 'vendedor'].includes(user.role);
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem('notifiedOnlineOrderIds');
-        const arr = raw ? (JSON.parse(raw) as unknown) : [];
-        if (Array.isArray(arr)) {
-          const next = new Set<string>();
-          arr.slice(0, 200).forEach((id) => {
-            if (typeof id === 'string') next.add(id);
-          });
-          notifiedOnlineOrderIdsRef.current = next;
-        }
-      } catch {
-      }
-    }
-
-    const persistNotifiedIds = () => {
-      if (typeof window === 'undefined') return;
-      try {
-        const ids = Array.from(notifiedOnlineOrderIdsRef.current).slice(-200);
-        localStorage.setItem('notifiedOnlineOrderIds', JSON.stringify(ids));
-      } catch {
-      }
-    };
 
     const mapOrderFromDB = (data: any): Order => ({
       ...data,
@@ -354,29 +276,19 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    // Funções específicas para orders com cache
-    const fetchOrdersWithCache = async () => {
-      // Carregar cache primeiro para exibição instantânea
-      const cachedOrders = loadCache<Order[]>('ordersCache');
-      if (cachedOrders && cachedOrders.length > 0) {
-        setOrders(cachedOrders);
-        lastGoodOrdersRef.current = cachedOrders;
-      }
-
-      // Buscar dados atualizados do Supabase em background
+    // Fetch orders diretamente do Supabase
+    const fetchOrders = async () => {
       try {
         const data = await fetchAll('orders', '*', 'date', false);
         const ordersData = data.map(mapOrderFromDB) as Order[];
         setOrders(ordersData);
-        saveCache('ordersCache', ordersData);
-        lastGoodOrdersRef.current = ordersData;
       } catch (error) {
         console.error('Error fetching orders:', error);
       }
     };
 
-    // Initial fetch - pedidos com cache, outros normal
-    fetchOrdersWithCache();
+    // Initial fetch
+    fetchOrders();
     fetchCollection('commission_payments', setCommissionPayments, 'paymentDate'); // Match schema "paymentDate"
     fetchCollection('stock_audits', setStockAudits);
     fetchCollection('avarias', setAvarias);
@@ -391,18 +303,12 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         if (payload.eventType === 'INSERT') {
           const newOrder = mapOrderFromDB(payload.new);
           console.log("📦 Novo pedido inserido via Real-time:", newOrder.id, newOrder.customer?.name);
-          setOrders(prev => {
-            const updated = [newOrder, ...prev];
-            saveCache('ordersCache', updated);
-            lastGoodOrdersRef.current = updated;
-            return updated;
-          });
+          setOrders(prev => [newOrder, ...prev]);
 
           // Notification Logic - Agora notifica TODOS os pedidos
           if (canNotify) {
             if (notifiedOnlineOrderIdsRef.current.has(newOrder.id)) return;
             notifiedOnlineOrderIdsRef.current.add(newOrder.id);
-            persistNotifiedIds();
 
             const formatCurrency = (value: number) => {
               return new Intl.NumberFormat('pt-BR', {
@@ -422,20 +328,10 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         } else if (payload.eventType === 'UPDATE') {
           const updatedOrder = mapOrderFromDB(payload.new);
           console.log("✏️ Pedido atualizado via Real-time:", updatedOrder.id);
-          setOrders(prev => {
-            const updated = prev.map(o => o.id === updatedOrder.id ? updatedOrder : o);
-            saveCache('ordersCache', updated);
-            lastGoodOrdersRef.current = updated;
-            return updated;
-          });
+          setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
         } else if (payload.eventType === 'DELETE') {
           console.log("🗑️ Pedido removido via Real-time:", payload.old.id);
-          setOrders(prev => {
-            const updated = prev.filter(o => o.id !== payload.old.id);
-            saveCache('ordersCache', updated);
-            lastGoodOrdersRef.current = updated;
-            return updated;
-          });
+          setOrders(prev => prev.filter(o => o.id !== payload.old.id));
         }
       })
 

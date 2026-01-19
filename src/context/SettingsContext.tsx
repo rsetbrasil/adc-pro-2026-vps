@@ -21,39 +21,11 @@ const initialSettings: StoreSettings = {
     commercialHourEnd: '18:00',
 };
 
-const SETTINGS_CACHE_KEY = 'adcpro/storeSettingsCache/v1';
-
 const mergeWithDefaults = (maybeSettings: Partial<StoreSettings> | null | undefined): StoreSettings => {
     return {
         ...initialSettings,
         ...(maybeSettings || {}),
     };
-};
-
-const readCachedSettings = (): StoreSettings | null => {
-    if (typeof window === 'undefined') return null;
-    try {
-        const raw = window.localStorage.getItem(SETTINGS_CACHE_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw) as StoreSettings;
-        return mergeWithDefaults(parsed);
-    } catch {
-        return null;
-    }
-};
-
-const writeCachedSettings = (settings: StoreSettings) => {
-    if (typeof window === 'undefined') return;
-    try {
-        window.localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(settings));
-    } catch { }
-};
-
-const clearCachedSettings = () => {
-    if (typeof window === 'undefined') return;
-    try {
-        window.localStorage.removeItem(SETTINGS_CACHE_KEY);
-    } catch { }
 };
 
 interface SettingsContextType {
@@ -67,7 +39,7 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
-    const [settings, setSettings] = useState<StoreSettings>(() => readCachedSettings() || initialSettings);
+    const [settings, setSettings] = useState<StoreSettings>(initialSettings);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
     const { logAction } = useAudit();
@@ -88,7 +60,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 if (data?.value) {
                     const remote = mergeWithDefaults(data.value as Partial<StoreSettings>);
                     setSettings(remote);
-                    writeCachedSettings(remote);
                 }
             } catch (error) {
                 console.error("Failed to load settings from Supabase:", error);
@@ -110,7 +81,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 if (payload.new && (payload.new as any).value) {
                     const remote = mergeWithDefaults((payload.new as any).value as Partial<StoreSettings>);
                     setSettings(remote);
-                    writeCachedSettings(remote);
                 }
             })
             .subscribe();
@@ -151,7 +121,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const resetSettings = async () => {
-        clearCachedSettings();
         await updateSettings(initialSettings);
         logAction('Reset de Configurações', `Configurações da loja foram restauradas para o padrão.`, user);
     };

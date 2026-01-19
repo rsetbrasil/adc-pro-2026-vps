@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { AsaasSettings } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 // Cria cliente Supabase para uso server-side
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;

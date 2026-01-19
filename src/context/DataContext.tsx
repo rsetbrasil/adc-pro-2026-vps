@@ -19,110 +19,26 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-const loadCache = <T,>(key: string): T | null => {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : null;
-  } catch {
-    return null;
-  }
-};
-
-const saveCache = (key: string, data: unknown) => {
-  if (typeof window === 'undefined') return;
-
-  // Preparar versão compacta para produtos
-  let dataToSave = data;
-  if (key === 'productsCache' && Array.isArray(data)) {
-    // Limitar a 500 produtos e apenas campos essenciais
-    dataToSave = data.slice(0, 500).map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      price: p.price,
-      originalPrice: p.originalPrice,
-      imageUrl: p.imageUrl,
-      imageUrls: p.imageUrls,
-      category: p.category,
-      subcategory: p.subcategory,
-      onSale: p.onSale,
-      stock: p.stock,
-      featured: p.featured,
-      isHidden: p.isHidden,
-      code: p.code,
-      createdAt: p.createdAt,
-    }));
-  }
-
-  try {
-    localStorage.setItem(key, JSON.stringify(dataToSave));
-  } catch (e: any) {
-    console.warn(`[Cache] Erro ao salvar ${key}:`, e?.name || e?.message || e);
-    // Limpar todos os caches para liberar espaço (não tentar salvar novamente)
-    try {
-      localStorage.removeItem('ordersCache');
-      localStorage.removeItem('customersCache');
-      localStorage.removeItem('productsCache');
-      localStorage.removeItem('categoriesCache');
-      localStorage.removeItem('adcpro/storeSettingsCache/v1');
-      localStorage.removeItem(key);
-    } catch {
-      // Ignora se não conseguir limpar
-    }
-  }
-};
-
-
 export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const lastGoodProductsRef = useRef<Product[]>([]);
 
-  // Funções de atualização otimista
+  // Funções de atualização otimista (sem cache)
   const updateProductLocally = (product: Product) => {
     setProducts(prev => prev.map(p => p.id === product.id ? product : p));
-    const updated = lastGoodProductsRef.current.map(p => p.id === product.id ? product : p);
-    saveCache('productsCache', updated);
-    lastGoodProductsRef.current = updated;
   };
 
   const addProductLocally = (product: Product) => {
     setProducts(prev => [...prev, product]);
-    const updated = [...lastGoodProductsRef.current, product];
-    saveCache('productsCache', updated);
-    lastGoodProductsRef.current = updated;
   };
 
   const deleteProductLocally = (productId: string) => {
     setProducts(prev => prev.filter(p => p.id !== productId));
-    const updated = lastGoodProductsRef.current.filter(p => p.id !== productId);
-    saveCache('productsCache', updated);
-    lastGoodProductsRef.current = updated;
   };
 
   useEffect(() => {
-    const applyProducts = (nextProducts: Product[]) => {
-      setProducts(nextProducts);
-      saveCache('productsCache', nextProducts);
-      lastGoodProductsRef.current = nextProducts;
-    };
-
-    const cachedProducts = loadCache<Product[]>('productsCache');
-    if (cachedProducts && cachedProducts.length > 0) {
-      setProducts(cachedProducts);
-      lastGoodProductsRef.current = cachedProducts;
-      setProductsLoading(false);
-    }
-
-    const cachedCategories = loadCache<Category[]>('categoriesCache');
-    if (cachedCategories && cachedCategories.length > 0) {
-      setCategories(cachedCategories);
-      setCategoriesLoading(false);
-    }
-
     const fetchData = async () => {
       // Fetch Products
       try {
@@ -134,13 +50,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (productsError) throw productsError;
 
         if (productsData) {
-          // Ensure field mappings if necessary (e.g. created_at -> createdAt if types demand it)
-          // Returning types as is for now, assuming types.ts aligns or we map manually
           const mappedProducts = productsData.map((p: any) => ({
             ...p,
-            createdAt: p.created_at || p.createdAt // Fallback
+            createdAt: p.created_at || p.createdAt
           }));
-          applyProducts(mappedProducts as Product[]);
+          setProducts(mappedProducts as Product[]);
         }
       } catch (error) {
         console.error('Error fetching products from Supabase:', error);
@@ -159,7 +73,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
         if (categoriesData) {
           setCategories(categoriesData as Category[]);
-          saveCache('categoriesCache', categoriesData);
         }
       } catch (error) {
         console.error('Error fetching categories from Supabase:', error);
@@ -170,7 +83,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     fetchData();
 
-    // Setup Realtime for Products - com atualização direta do estado
+    // Setup Realtime for Products
     const mapProductFromDB = (p: any): Product => ({
       ...p,
       createdAt: p.created_at || p.createdAt
@@ -185,21 +98,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (payload.eventType === 'INSERT') {
           const newProduct = mapProductFromDB(payload.new);
           setProducts(prev => [...prev, newProduct]);
-          saveCache('productsCache', [...lastGoodProductsRef.current, newProduct]);
-          lastGoodProductsRef.current = [...lastGoodProductsRef.current, newProduct];
         } else if (payload.eventType === 'UPDATE') {
           const updatedProduct = mapProductFromDB(payload.new);
           setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
-          const updated = lastGoodProductsRef.current.map(p => p.id === updatedProduct.id ? updatedProduct : p);
-          saveCache('productsCache', updated);
-          lastGoodProductsRef.current = updated;
         } else if (payload.eventType === 'DELETE') {
           const deletedId = oldRecord?.id;
           if (deletedId) {
             setProducts(prev => prev.filter(p => p.id !== deletedId));
-            const filtered = lastGoodProductsRef.current.filter(p => p.id !== deletedId);
-            saveCache('productsCache', filtered);
-            lastGoodProductsRef.current = filtered;
           }
         }
       })
@@ -207,8 +112,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     // Setup Realtime for Categories
     const categoriesChannel = supabase.channel('public:categories')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
-        fetchData();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, async () => {
+        // Recarregar categorias quando houver mudança
+        try {
+          const { data } = await supabase
+            .from('categories')
+            .select('*')
+            .order('order', { ascending: true });
+          if (data) setCategories(data as Category[]);
+        } catch (error) {
+          console.error('Error reloading categories:', error);
+        }
       })
       .subscribe();
 

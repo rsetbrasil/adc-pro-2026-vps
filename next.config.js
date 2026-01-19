@@ -22,22 +22,20 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Desabilitar cache para rotas do admin
-        source: '/admin/:path*',
+        // No-cache para TODAS as rotas
+        source: '/:path*',
         headers: [
           {
             key: 'Cache-Control',
-            value: 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            value: 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
           },
-        ],
-      },
-      {
-        // Desabilitar cache para API routes
-        source: '/api/:path*',
-        headers: [
           {
-            key: 'Cache-Control',
-            value: 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            key: 'Pragma',
+            value: 'no-cache',
+          },
+          {
+            key: 'Expires',
+            value: '0',
           },
         ],
       },
