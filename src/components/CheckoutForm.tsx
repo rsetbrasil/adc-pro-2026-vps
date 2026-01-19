@@ -192,6 +192,8 @@ export default function CheckoutForm() {
               code: customerData.code || '',
               sellerId: customerData.sellerId || undefined,
               sellerName: customerData.sellerName || undefined,
+              paymentMethod: 'Crediário',
+              observations: form.getValues('observations') || '',
             };
 
             form.reset(sanitizedData);
@@ -227,6 +229,8 @@ export default function CheckoutForm() {
                 code: customerData.code || '',
                 sellerId: customerData.sellerId || undefined,
                 sellerName: customerData.sellerName || undefined,
+                paymentMethod: 'Crediário',
+                observations: form.getValues('observations') || '',
               };
 
               form.reset(sanitizedData);
@@ -281,8 +285,17 @@ export default function CheckoutForm() {
 
   useEffect(() => {
     const errors = form.formState.errors;
-    if (Object.keys(errors).length > 0) {
-      console.warn("[CHECKOUT] Erros de validação no formulário:", errors);
+    const errorKeys = Object.keys(errors);
+    if (errorKeys.length > 0) {
+      const errorSummary = errorKeys.map(key => ({
+        campo: key,
+        erro: (errors as any)[key]?.message
+      }));
+      console.warn("[CHECKOUT] ❌ BLOQUEIO DE VALIDAÇÃO DETECTADO:");
+      // Imprime como tabela para fácil leitura
+      console.table(errorSummary);
+      // Imprime como string para garantir que saia no copy/paste
+      console.warn("DETALHES DOS ERROS (Se a tabela não aparecer): " + JSON.stringify(errorSummary, null, 2));
     }
   }, [form.formState.errors]);
 
