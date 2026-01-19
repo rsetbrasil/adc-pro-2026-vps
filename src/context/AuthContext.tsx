@@ -43,40 +43,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
 
     const fetchUsers = async () => {
-      const { data, error }: { data: User[] | null; error: any } = await supabase.from('users').select('*');
+      try {
+        const { data, error }: { data: User[] | null; error: any } = await supabase.from('users').select('*');
 
-      if (error) {
-        console.error('Error fetching users:', error);
-        return;
-      }
-
-      if (data) {
-        setUsers(data);
-
-        // Validar sessão armazenada contra o banco de dados em tempo real
-        try {
-          const storedUser = localStorage.getItem('user');
-          if (storedUser) {
-            const parsedUser = JSON.parse(storedUser) as User;
-            // Verificar se o usuário ainda existe no banco
-            const validUser = data.find(u => u.id === parsedUser.id);
-            if (validUser) {
-              // Atualizar dados do usuário com informações mais recentes do banco
-              const updatedUser = { ...validUser };
-              delete updatedUser.password; // Nunca armazenar senha
-              setUser(updatedUser);
-              localStorage.setItem('user', JSON.stringify(updatedUser));
-            } else {
-              // Usuário não existe mais, limpar sessão
-              localStorage.removeItem('user');
-              setUser(null);
-            }
-          }
-        } catch (error) {
-          console.error("Failed to validate session:", error);
-          localStorage.removeItem('user');
-          setUser(null);
+        if (error) {
+          console.error('Error fetching users:', error);
+          return;
         }
+
+        if (data) {
+          setUsers(data);
+
+          // Validar sessão armazenada contra o banco de dados em tempo real
+          try {
+            const storedUser = localStorage.getItem('user');
+            if (storedUser) {
+              const parsedUser = JSON.parse(storedUser) as User;
+              // Verificar se o usuário ainda existe no banco
+              const validUser = data.find(u => u.id === parsedUser.id);
+              if (validUser) {
+                // Atualizar dados do usuário com informações mais recentes do banco
+                const updatedUser = { ...validUser };
+                delete updatedUser.password; // Nunca armazenar senha
+                setUser(updatedUser);
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+              } else {
+                // Usuário não existe mais, limpar sessão
+                localStorage.removeItem('user');
+                setUser(null);
+              }
+            }
+          } catch (error) {
+            console.error("Failed to validate session:", error);
+            localStorage.removeItem('user');
+            setUser(null);
+          }
+        }
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -88,8 +92,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const record = payload.new as Record<string, any> | null;
         const oldRecord = payload.old as Record<string, any> | null;
 
-        // Atualizar lista de usuários
-        fetchUsers();
+        // Atualizar lista de usuários (sem loading state aqui pois é atualização em tempo real)
+        supabase.from('users').select('*').then(({ data }) => {
+          if (data) setUsers(data);
+        });
 
         // Se o usuário logado foi modificado ou deletado, atualizar sessão
         if (payload.eventType === 'UPDATE' && record && user && record.id === user.id) {
@@ -105,12 +111,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       })
       .subscribe();
 
-    setIsLoading(false);
-
     return () => {
       supabase.removeChannel(channel);
     };
   }, []);
+
 
   const login = (username: string, pass: string) => {
     // Basic auth logic using the users list fetched
