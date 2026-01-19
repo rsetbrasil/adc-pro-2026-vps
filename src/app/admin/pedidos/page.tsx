@@ -814,8 +814,22 @@ Não esqueça de enviar o comprovante!`;
                                 ) : (
                                     <div className="text-center py-16 text-muted-foreground border-2 border-dashed rounded-lg">
                                         <PackageSearch className="mx-auto h-12 w-12" />
-                                        <h3 className="mt-4 text-lg font-semibold">Nenhum pedido encontrado</h3>
-                                        <p className="mt-1 text-sm">Ajuste os filtros ou crie um novo pedido.</p>
+                                        {!user ? (
+                                            <>
+                                                <h3 className="mt-4 text-lg font-semibold">Conecte-se para ver os pedidos</h3>
+                                                <p className="mt-1 text-sm">Por favor, faça login para acessar o painel de pedidos.</p>
+                                                <Link href="/login" className="mt-4 inline-block">
+                                                    <Button>
+                                                        Fazer Login
+                                                    </Button>
+                                                </Link>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <h3 className="mt-4 text-lg font-semibold">Nenhum pedido encontrado</h3>
+                                                <p className="mt-1 text-sm">Ajuste os filtros ou crie um novo pedido.</p>
+                                            </>
+                                        )}
                                     </div>
                                 )}
                             </TabsContent>
