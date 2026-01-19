@@ -149,6 +149,27 @@ export default function OrdersAdminPage() {
     const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
     const [activePage, setActivePage] = useState(1);
     const [deletedPage, setDeletedPage] = useState(1);
+    const [viewedOrders, setViewedOrders] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        const stored = localStorage.getItem('viewedOrders');
+        if (stored) {
+            try {
+                setViewedOrders(new Set(JSON.parse(stored)));
+            } catch (e) {
+                console.error("Erro ao carregar pedidos visualizados", e);
+            }
+        }
+    }, []);
+
+    const markAsViewed = (orderId: string) => {
+        setViewedOrders(prev => {
+            const next = new Set(prev);
+            next.add(orderId);
+            localStorage.setItem('viewedOrders', JSON.stringify(Array.from(next)));
+            return next;
+        });
+    };
 
     const ORDERS_PER_PAGE = 20;
 
@@ -328,6 +349,7 @@ export default function OrdersAdminPage() {
     }, [orders, selectedOrder]);
 
     const handleOpenDetails = (order: Order) => {
+        markAsViewed(order.id);
         setSelectedOrder(order);
         setInstallmentsInput(order.installments);
         setEditedInstallmentValues({});
@@ -689,6 +711,15 @@ Não esqueça de enviar o comprovante!`;
                                                             <TableRow key={order.id} className="text-sm">
                                                                 <TableCell className="p-2 font-medium font-mono text-xs">{order.id}</TableCell>
                                                                 <TableCell className="p-2 whitespace-nowrap">
+                                                                    {order.source === 'Online' && !viewedOrders.has(order.id) && (
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="relative flex h-3 w-3">
+                                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                                                                            </span>
+                                                                            <span className="font-semibold text-green-600">Catálogo Online</span>
+                                                                        </div>
+                                                                    )}
                                                                     <span className="text-muted-foreground">{format(new Date(order.date), "dd/MM/yy HH:mm")}</span>
                                                                 </TableCell>
                                                                 <TableCell className="p-2">
@@ -1094,9 +1125,12 @@ Não esqueça de enviar o comprovante!`;
                                         <CardTitle className="text-lg">Criação</CardTitle>
                                     </CardHeader>
                                     <CardContent className="text-sm space-y-1">
-                                        <p><strong>Criado por:</strong> {selectedOrder.createdByName || '-'}</p>
-                                        <p><strong>Data/Hora:</strong> {selectedOrder.createdAt ? format(parseISO(selectedOrder.createdAt), "dd/MM/yyyy 'às' HH:mm") : '-'}</p>
-                                        <p><strong>IP:</strong> {selectedOrder.createdIp || '-'}</p>
+                                        <div className="flex flex-col gap-1">
+                                            <p><span className="font-semibold">Criado por:</span> {selectedOrder.createdByName || 'Sistema'}</p>
+                                            <p><span className="font-semibold">Origem:</span> {selectedOrder.source === 'Online' ? '🌐 Catálogo Online' : '📝 Manual'}</p>
+                                            <p><span className="font-semibold">Data/Hora:</span> {format(parseISO(selectedOrder.createdAt || selectedOrder.date), "dd/MM/yyyy 'às' HH:mm")}</p>
+                                            <p><span className="font-semibold">IP:</span> {selectedOrder.ip || '-'}</p>
+                                        </div>
                                     </CardContent>
                                 </Card>
 
