@@ -215,7 +215,11 @@ export default function OrdersAdminPage() {
 
             const statusMatch = filters.status === 'all' || o.status === filters.status;
 
-            const sellerMatch = filters.seller === 'all' || o.sellerId === filters.seller;
+            const sellerMatch = (() => {
+                if (filters.seller === 'all') return true;
+                if (filters.seller === 'unassigned') return !o.sellerId;
+                return o.sellerId === filters.seller;
+            })();
 
             const dateMatch = (() => {
                 if ((!filters.year || filters.year === 'all') && (!filters.month || filters.month === 'all')) {
@@ -604,6 +608,7 @@ Não esqueça de enviar o comprovante!`;
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="all">Todos os Vendedores</SelectItem>
+                                                <SelectItem value="unassigned">Não atribuído</SelectItem>
                                                 {assignableSellers.map(s => (
                                                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                                                 ))}
