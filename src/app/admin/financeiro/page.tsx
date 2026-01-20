@@ -55,29 +55,29 @@ const formatOrderProducts = (items: Order['items']) => {
 };
 
 type SellerCommissionDetails = {
-    id: string;
-    name: string;
-    total: number;
-    count: number;
-    orderIds: string[];
+  id: string;
+  name: string;
+  total: number;
+  count: number;
+  orderIds: string[];
 };
 
 type SellerPerformanceDetails = {
-    id: string;
-    name: string;
-    salesCount: number;
-    totalSold: number;
-    totalCommission: number;
-    orders: Order[];
+  id: string;
+  name: string;
+  salesCount: number;
+  totalSold: number;
+  totalCommission: number;
+  orders: Order[];
 }
 
 const meses = [
-    { value: '01', label: 'Janeiro' }, { value: '02', label: 'Fevereiro' },
-    { value: '03', label: 'Março' }, { value: '04', label: 'Abril' },
-    { value: '05', label: 'Maio' }, { value: '06', label: 'Junho' },
-    { value: '07', label: 'Julho' }, { value: '08', label: 'Agosto' },
-    { value: '09', label: 'Setembro' }, { value: '10', label: 'Outubro' },
-    { value: '11', label: 'Novembro' }, { value: '12', label: 'Dezembro' },
+  { value: '01', label: 'Janeiro' }, { value: '02', label: 'Fevereiro' },
+  { value: '03', label: 'Março' }, { value: '04', label: 'Abril' },
+  { value: '05', label: 'Maio' }, { value: '06', label: 'Junho' },
+  { value: '07', label: 'Julho' }, { value: '08', label: 'Agosto' },
+  { value: '09', label: 'Setembro' }, { value: '10', label: 'Outubro' },
+  { value: '11', label: 'Novembro' }, { value: '12', label: 'Dezembro' },
 ];
 
 export default function FinanceiroPage() {
@@ -95,7 +95,7 @@ export default function FinanceiroPage() {
   const [isPerformanceDetailModalOpen, setIsPerformanceDetailModalOpen] = useState(false);
   const [selectedPerformanceSeller, setSelectedPerformanceSeller] = useState<SellerPerformanceDetails | null>(null);
   const [printTitle, setPrintTitle] = useState('');
-  
+
   const deliveredOrders = useMemo(() => {
     if (!orders) return [];
     return orders
@@ -146,20 +146,20 @@ export default function FinanceiroPage() {
     const performanceMap = new Map<string, SellerPerformanceDetails>();
 
     users.forEach(seller => {
-        if(seller.role === 'vendedor' || seller.role === 'gerente' || seller.role === 'admin') {
-            performanceMap.set(seller.id, { id: seller.id, name: seller.name, salesCount: 0, totalSold: 0, totalCommission: 0, orders: [] });
-        }
+      if (seller.role === 'vendedor' || seller.role === 'gerente' || seller.role === 'admin' || seller.role === 'vendedor_externo') {
+        performanceMap.set(seller.id, { id: seller.id, name: seller.name, salesCount: 0, totalSold: 0, totalCommission: 0, orders: [] });
+      }
     });
 
     ordersDoPeriodo.forEach(order => {
-        if (order.sellerId && performanceMap.has(order.sellerId) && order.status !== 'Cancelado' && order.status !== 'Excluído') {
-            const sellerData = performanceMap.get(order.sellerId)!;
-            sellerData.salesCount += 1;
-            sellerData.totalSold += order.total;
-            sellerData.totalCommission += order.commission || 0;
-            sellerData.orders.push(order);
-            performanceMap.set(order.sellerId, sellerData);
-        }
+      if (order.sellerId && performanceMap.has(order.sellerId) && order.status !== 'Cancelado' && order.status !== 'Excluído') {
+        const sellerData = performanceMap.get(order.sellerId)!;
+        sellerData.salesCount += 1;
+        sellerData.totalSold += order.total;
+        sellerData.totalCommission += order.commission || 0;
+        sellerData.orders.push(order);
+        performanceMap.set(order.sellerId, sellerData);
+      }
     });
 
     return Array.from(performanceMap.values())
@@ -175,23 +175,23 @@ export default function FinanceiroPage() {
 
 
   const handlePayCommission = async (seller: SellerCommissionDetails) => {
-      const period = format(new Date(), 'MMMM/yyyy', { locale: ptBR });
-      const paymentId = await payCommissions(seller.id, seller.name, seller.total, seller.orderIds, period, logAction, user);
-      if (paymentId) {
-          router.push(`/admin/comprovante-comissao/${paymentId}`);
-      }
+    const period = format(new Date(), 'MMMM/yyyy', { locale: ptBR });
+    const paymentId = await payCommissions(seller.id, seller.name, seller.total, seller.orderIds, period, logAction, user);
+    if (paymentId) {
+      router.push(`/admin/comprovante-comissao/${paymentId}`);
+    }
   };
-  
+
   const handleOpenCommissionDetails = (seller: SellerCommissionDetails) => {
     setSelectedCommissionSeller(seller);
     setIsCommissionDetailModalOpen(true);
   };
-  
+
   const ordersForSelectedCommissionSeller = useMemo(() => {
     if (!selectedCommissionSeller) return [];
     return orders.filter(o => selectedCommissionSeller.orderIds.includes(o.id));
   }, [selectedCommissionSeller, orders]);
-  
+
   const handleOpenPerformanceDetails = (seller: SellerPerformanceDetails) => {
     setSelectedPerformanceSeller(seller);
     setIsPerformanceDetailModalOpen(true);
@@ -202,28 +202,28 @@ export default function FinanceiroPage() {
       return;
     }
     let title = 'Relatório Financeiro';
-    
+
     document.body.classList.remove('print-sales-only', 'print-profits-only', 'print-commissions-only', 'print-sellers-only');
-    
+
     if (type === 'sales') {
-        title = 'Relatório de Vendas';
-        document.body.classList.add('print-sales-only');
+      title = 'Relatório de Vendas';
+      document.body.classList.add('print-sales-only');
     } else if (type === 'profits') {
-        title = 'Relatório de Lucros';
-        document.body.classList.add('print-profits-only');
+      title = 'Relatório de Lucros';
+      document.body.classList.add('print-profits-only');
     } else if (type === 'commissions') {
-        title = 'Relatório de Comissões';
-        document.body.classList.add('print-commissions-only');
+      title = 'Relatório de Comissões';
+      document.body.classList.add('print-commissions-only');
     } else if (type === 'sellers') {
-        title = `Relatório de Vendas e Comissões por Vendedor - ${rotuloPeriodo}`;
-        document.body.classList.add('print-sellers-only');
+      title = `Relatório de Vendas e Comissões por Vendedor - ${rotuloPeriodo}`;
+      document.body.classList.add('print-sellers-only');
     }
-    
+
     setPrintTitle(title);
 
     setTimeout(() => {
-        window.print();
-        document.body.className = '';
+      window.print();
+      document.body.className = '';
     }, 100);
   };
 
@@ -231,7 +231,7 @@ export default function FinanceiroPage() {
     if (!selectedPerformanceSeller) return;
     const printContents = document.getElementById('seller-report-modal-content')?.innerHTML;
     const originalContents = document.body.innerHTML;
-    
+
     const header = `
       <div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 1rem; border-bottom: 1px solid #ccc;">
         <div>
@@ -248,13 +248,13 @@ export default function FinanceiroPage() {
     window.location.reload(); // To re-attach React event listeners
   }
 
-  
+
   const chartConfig = {
-      total: {
-        label: 'Vendas',
-        color: 'hsl(var(--primary))',
-      },
-    };
+    total: {
+      label: 'Vendas',
+      color: 'hsl(var(--primary))',
+    },
+  };
 
   const sellerPerformanceCard = (
     <Card id="seller-performance-card" className="overflow-hidden">
@@ -559,23 +559,23 @@ export default function FinanceiroPage() {
         )}
       </div>
 
-       {/* Print-only view */}
+      {/* Print-only view */}
       <div className="hidden print-only">
         <div className="mb-8">
-            <div className="flex justify-between items-start pb-4 border-b">
-                <div>
-                    <div className="text-xs">
-                        <p className="font-bold">{settings.storeName}</p>
-                        <p className="whitespace-pre-line">{settings.storeAddress}</p>
-                    </div>
-                </div>
-                <div className="text-right">
-                    <p className="text-sm text-gray-500">{new Date().toLocaleDateString('pt-BR')}</p>
-                    <p className="text-lg font-bold">{printTitle}</p>
-                </div>
+          <div className="flex justify-between items-start pb-4 border-b">
+            <div>
+              <div className="text-xs">
+                <p className="font-bold">{settings.storeName}</p>
+                <p className="whitespace-pre-line">{settings.storeAddress}</p>
+              </div>
             </div>
+            <div className="text-right">
+              <p className="text-sm text-gray-500">{new Date().toLocaleDateString('pt-BR')}</p>
+              <p className="text-lg font-bold">{printTitle}</p>
+            </div>
+          </div>
         </div>
-        
+
         {isManager ? (
           printSellersSection
         ) : (
@@ -699,142 +699,142 @@ export default function FinanceiroPage() {
           </>
         )}
       </div>
-    
-    {!isManager && (
-      <Dialog open={isCommissionDetailModalOpen} onOpenChange={setIsCommissionDetailModalOpen}>
+
+      {!isManager && (
+        <Dialog open={isCommissionDetailModalOpen} onOpenChange={setIsCommissionDetailModalOpen}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Vendas Pendentes de Comissão</DialogTitle>
+              <DialogDescription>
+                Lista de vendas para o vendedor <span className="font-bold">{selectedCommissionSeller?.name}</span> que compõem o total da comissão.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="rounded-md border max-h-[60vh] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Pedido</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead className="text-right">Valor Pedido</TableHead>
+                    <TableHead className="text-right">Valor Comissão</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ordersForSelectedCommissionSeller.length > 0 ? (
+                    ordersForSelectedCommissionSeller.map(order => (
+                      <TableRow key={order.id}>
+                        <TableCell>
+                          {(() => {
+                            const date = parseFlexibleDate(order.date);
+                            return date ? format(date, 'dd/MM/yy') : order.date;
+                          })()}
+                        </TableCell>
+                        <TableCell className="font-mono">{order.id}</TableCell>
+                        <TableCell>{order.customer.name}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(order.commission || 0)}</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center">Nenhum pedido encontrado.</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={isPerformanceDetailModalOpen} onOpenChange={setIsPerformanceDetailModalOpen}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Vendas Pendentes de Comissão</DialogTitle>
+            <DialogTitle>Relatório de Vendas - {selectedPerformanceSeller?.name}</DialogTitle>
             <DialogDescription>
-              Lista de vendas para o vendedor <span className="font-bold">{selectedCommissionSeller?.name}</span> que compõem o total da comissão.
+              Lista de vendas realizadas pelo vendedor no período selecionado.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-md border max-h-[60vh] overflow-y-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Pedido</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead className="text-right">Valor Pedido</TableHead>
-                  <TableHead className="text-right">Valor Comissão</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ordersForSelectedCommissionSeller.length > 0 ? (
-                  ordersForSelectedCommissionSeller.map(order => (
-                    <TableRow key={order.id}>
-                      <TableCell>
-                        {(() => {
-                          const date = parseFlexibleDate(order.date);
-                          return date ? format(date, 'dd/MM/yy') : order.date;
-                        })()}
-                      </TableCell>
-                      <TableCell className="font-mono">{order.id}</TableCell>
-                      <TableCell>{order.customer.name}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(order.total)}</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(order.commission || 0)}</TableCell>
-                    </TableRow>
-                  ))
-                ) : (
+          <div id="seller-report-modal-content">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+              <div className="p-3 rounded-md border bg-muted/30">
+                <p className="text-xs text-muted-foreground">Total vendido</p>
+                <p className="text-lg font-bold">{formatCurrency(selectedPerformanceSeller?.totalSold ?? 0)}</p>
+              </div>
+              <div className="p-3 rounded-md border bg-muted/30">
+                <p className="text-xs text-muted-foreground">Comissão gerada</p>
+                <p className="text-lg font-bold">{formatCurrency(selectedPerformanceSeller?.totalCommission ?? 0)}</p>
+              </div>
+            </div>
+            <div className="hidden print-only space-y-1 text-sm">
+              <div className="font-semibold border-b pb-1">
+                Data | Pedido | Cliente | Produtos | Valor | Comissão
+              </div>
+              {(selectedPerformanceSeller?.orders.length ?? 0) > 0 ? (
+                selectedPerformanceSeller?.orders.map(order => (
+                  <div key={order.id} className="border-b py-1">
+                    {(() => {
+                      const date = parseFlexibleDate(order.date);
+                      return date ? format(date, 'dd/MM/yy') : order.date;
+                    })()} | {order.id} | {order.customer.name} | {formatOrderProducts(order.items)} | {formatCurrency(order.total)} | {formatCurrency(order.commission || 0)}
+                  </div>
+                ))
+              ) : (
+                <div className="py-4 text-center text-muted-foreground">
+                  Nenhuma venda encontrada para este vendedor.
+                </div>
+              )}
+            </div>
+            <div className="rounded-md border max-h-[60vh] overflow-y-auto print-hidden">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">Nenhum pedido encontrado.</TableCell>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Pedido</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Produtos</TableHead>
+                    <TableHead className="text-right">Valor da Venda</TableHead>
+                    <TableHead className="text-right">Comissão</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {(selectedPerformanceSeller?.orders.length ?? 0) > 0 ? (
+                    selectedPerformanceSeller?.orders.map(order => (
+                      <TableRow key={order.id}>
+                        <TableCell>
+                          {(() => {
+                            const date = parseFlexibleDate(order.date);
+                            return date ? format(date, 'dd/MM/yy') : order.date;
+                          })()}
+                        </TableCell>
+                        <TableCell className="font-mono">{order.id}</TableCell>
+                        <TableCell>{order.customer.name}</TableCell>
+                        <TableCell className="max-w-[260px] truncate" title={formatOrderProducts(order.items)}>
+                          {formatOrderProducts(order.items)}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(order.total)}</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(order.commission || 0)}</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-24 text-center">Nenhuma venda encontrada para este vendedor.</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setIsPerformanceDetailModalOpen(false)}>Fechar</Button>
+            <Button onClick={handlePrintSingleSeller}>
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimir
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
-    )}
-    
-    <Dialog open={isPerformanceDetailModalOpen} onOpenChange={setIsPerformanceDetailModalOpen}>
-        <DialogContent className="max-w-4xl">
-            <DialogHeader>
-                <DialogTitle>Relatório de Vendas - {selectedPerformanceSeller?.name}</DialogTitle>
-                <DialogDescription>
-                    Lista de vendas realizadas pelo vendedor no período selecionado.
-                </DialogDescription>
-            </DialogHeader>
-            <div id="seller-report-modal-content">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-                    <div className="p-3 rounded-md border bg-muted/30">
-                        <p className="text-xs text-muted-foreground">Total vendido</p>
-                        <p className="text-lg font-bold">{formatCurrency(selectedPerformanceSeller?.totalSold ?? 0)}</p>
-                    </div>
-                    <div className="p-3 rounded-md border bg-muted/30">
-                        <p className="text-xs text-muted-foreground">Comissão gerada</p>
-                        <p className="text-lg font-bold">{formatCurrency(selectedPerformanceSeller?.totalCommission ?? 0)}</p>
-                    </div>
-                </div>
-                <div className="hidden print-only space-y-1 text-sm">
-                    <div className="font-semibold border-b pb-1">
-                        Data | Pedido | Cliente | Produtos | Valor | Comissão
-                    </div>
-                    {(selectedPerformanceSeller?.orders.length ?? 0) > 0 ? (
-                        selectedPerformanceSeller?.orders.map(order => (
-                            <div key={order.id} className="border-b py-1">
-                                {(() => {
-                                  const date = parseFlexibleDate(order.date);
-                                  return date ? format(date, 'dd/MM/yy') : order.date;
-                                })()} | {order.id} | {order.customer.name} | {formatOrderProducts(order.items)} | {formatCurrency(order.total)} | {formatCurrency(order.commission || 0)}
-                            </div>
-                        ))
-                    ) : (
-                        <div className="py-4 text-center text-muted-foreground">
-                            Nenhuma venda encontrada para este vendedor.
-                        </div>
-                    )}
-                </div>
-                <div className="rounded-md border max-h-[60vh] overflow-y-auto print-hidden">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Data</TableHead>
-                                <TableHead>Pedido</TableHead>
-                                <TableHead>Cliente</TableHead>
-                                <TableHead>Produtos</TableHead>
-                                <TableHead className="text-right">Valor da Venda</TableHead>
-                                <TableHead className="text-right">Comissão</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {(selectedPerformanceSeller?.orders.length ?? 0) > 0 ? (
-                                selectedPerformanceSeller?.orders.map(order => (
-                                    <TableRow key={order.id}>
-                                        <TableCell>
-                                          {(() => {
-                                            const date = parseFlexibleDate(order.date);
-                                            return date ? format(date, 'dd/MM/yy') : order.date;
-                                          })()}
-                                        </TableCell>
-                                        <TableCell className="font-mono">{order.id}</TableCell>
-                                        <TableCell>{order.customer.name}</TableCell>
-                                        <TableCell className="max-w-[260px] truncate" title={formatOrderProducts(order.items)}>
-                                          {formatOrderProducts(order.items)}
-                                        </TableCell>
-                                        <TableCell className="text-right font-semibold">{formatCurrency(order.total)}</TableCell>
-                                        <TableCell className="text-right font-semibold">{formatCurrency(order.commission || 0)}</TableCell>
-                                    </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center">Nenhuma venda encontrada para este vendedor.</TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-            </div>
-            <DialogFooter className="mt-4">
-                <Button variant="outline" onClick={() => setIsPerformanceDetailModalOpen(false)}>Fechar</Button>
-                <Button onClick={handlePrintSingleSeller}>
-                    <Printer className="mr-2 h-4 w-4" />
-                    Imprimir
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
 
     </div>
   );

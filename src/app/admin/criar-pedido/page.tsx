@@ -165,7 +165,7 @@ export default function CreateOrderPage() {
 
   const sellers = useMemo(() => {
     return users
-      .filter(u => u.role === 'vendedor' || u.role === 'admin' || u.role === 'gerente')
+      .filter(u => u.role === 'vendedor' || u.role === 'admin' || u.role === 'gerente' || u.role === 'vendedor_externo')
       .filter(u => u.canBeAssigned !== false);
   }, [users]);
 
