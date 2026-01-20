@@ -10,6 +10,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import Autoplay from "embla-carousel-autoplay";
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import FilterSheet from '@/components/FilterSheet';
@@ -160,6 +161,11 @@ export default function Home() {
                 align: "start",
                 loop: featuredProducts.length > 3,
               }}
+              plugins={[
+                Autoplay({
+                  delay: 4000,
+                }),
+              ]}
               className="w-full"
             >
               <CarouselContent>
