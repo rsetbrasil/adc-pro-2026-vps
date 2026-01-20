@@ -25,18 +25,22 @@ const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+import { useToast } from '@/hooks/use-toast';
+
 export default function OrderConfirmationPage() {
   const { lastOrder } = useCart();
-  const { settings } = useSettings();
+  const { settings, isLoading: isSettingsLoading } = useSettings();
   const { products } = useData();
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
   const autoWhatsapp = searchParams.get('autoWhatsapp');
   const [order, setOrder] = useState<Order | null>(null);
   const [isOrdersLoading, setIsLoading] = useState(true);
   const [asaasPixPayload, setAsaasPixPayload] = useState<string | null>(null);
   const [asaasError, setAsaasError] = useState<string | null>(null);
+  const [redirectStatus, setRedirectStatus] = useState<string>('');
 
   useEffect(() => {
     const orderId = params.id as string;
@@ -59,7 +63,7 @@ export default function OrderConfirmationPage() {
         if (data) {
           setOrder(data as Order);
         } else {
-          console.error("No such order, redirecting.");
+          console.error("Pedido não encontrado, redirecionando.");
           if (lastOrder) {
             setOrder(lastOrder);
           } else {
@@ -67,7 +71,7 @@ export default function OrderConfirmationPage() {
           }
         }
       } catch (error) {
-        console.error("Error fetching order:", error);
+        console.error("Erro ao buscar pedido:", error);
         router.push('/');
       } finally {
         setIsLoading(false);
@@ -129,7 +133,7 @@ export default function OrderConfirmationPage() {
           pix: {
             payload,
             encodedImage: data?.pix?.encodedImage ?? null,
-            expirationDate: data?.pix?.expirationDate ?? null,
+            expirationDate: data?.pix?.encodedImage ?? null,
           },
           updatedAt: new Date().toISOString(),
         };
@@ -200,11 +204,31 @@ export default function OrderConfirmationPage() {
   }, [order, settings.storePhone, products]);
 
   useEffect(() => {
-    if (order && autoWhatsapp && whatsappUrl) {
-      // Redireciona automaticamente
-      window.location.href = whatsappUrl;
-    }
-  }, [order, autoWhatsapp, whatsappUrl]);
+    // Wait for everything to load
+    if (!order || !autoWhatsapp || isSettingsLoading) return;
+
+    // Small delay to ensure UI is visible before redirecting (optional but good for UX)
+    const timer = setTimeout(() => {
+      if (whatsappUrl) {
+        setRedirectStatus("Abrindo WhatsApp em nova guia...");
+        toast({
+          title: "Abrindo WhatsApp...",
+          description: "Se não abrir, clique no botão abaixo.",
+          duration: 5000,
+        });
+        window.open(whatsappUrl, '_blank');
+      } else {
+        setRedirectStatus("Falha: WhatsApp da loja não configurado.");
+        toast({
+          title: "WhatsApp indisponível",
+          description: "O telefone da loja não foi configurado. Vá em Configurações.",
+          variant: "destructive",
+        });
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [order, autoWhatsapp, whatsappUrl, isSettingsLoading, toast]);
 
   const pixPayload = useMemo(() => {
     if (!order) return null;
@@ -252,6 +276,11 @@ export default function OrderConfirmationPage() {
           <CardDescription className="text-lg">
             Obrigado pela sua compra, {order.customer.name.split(' ')[0]}!
           </CardDescription>
+          {redirectStatus && (
+            <p className={`font-bold mt-2 ${redirectStatus.includes('Falha') ? 'text-red-500' : 'text-blue-600 animate-pulse'}`}>
+              {redirectStatus}
+            </p>
+          )}
           <p className="font-semibold text-muted-foreground">Número do Pedido: <Badge variant="secondary">{order.id}</Badge></p>
           {order.customer.code && (
             <p className="font-semibold text-muted-foreground">
@@ -259,13 +288,15 @@ export default function OrderConfirmationPage() {
             </p>
           )}
           {settings.storePhone && (
-            <div className="mt-4 flex justify-center">
+            <div className="mt-6 flex justify-center">
               <a
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Button variant="outline">Enviar no WhatsApp</Button>
+                <Button className="bg-green-600 hover:bg-green-700 text-white font-bold py-6 px-8 text-lg rounded-xl shadow-md transition-all hover:scale-105 flex items-center gap-2">
+                  <span className="text-2xl">📱</span> Enviar Pedido no WhatsApp
+                </Button>
               </a>
             </div>
           )}
@@ -329,9 +360,9 @@ export default function OrderConfirmationPage() {
                   </p>
                   <PixQRCode payload={pixPayload} />
                   {order.paymentMethod === 'Crediário' && settings.pixKey && (
-                    <p className="mt-2 text-xs text-muted-foreground">
+                    <p className="mt-4 text-lg text-muted-foreground font-bold text-center">
                       Chave PIX:{' '}
-                      <span className="font-mono break-all text-foreground">{settings.pixKey}</span>
+                      <span className="font-mono break-all text-primary text-xl select-all">{settings.pixKey}</span>
                     </p>
                   )}
                 </div>

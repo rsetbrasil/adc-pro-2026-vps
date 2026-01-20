@@ -22,7 +22,7 @@ import Image from 'next/image';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import type { Order, CustomerInfo, PaymentMethod, Product } from '@/lib/types';
-import { addMonths } from 'date-fns';
+import { addMonths, format } from 'date-fns';
 import { AlertTriangle, CreditCard, KeyRound, Trash2, ArrowLeft, User } from 'lucide-react';
 import { useSettings } from '@/context/SettingsContext';
 import { useData } from '@/context/DataContext';
@@ -127,6 +127,7 @@ export default function CheckoutForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [isNewCustomer, setIsNewCustomer] = useState(true);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const form = useForm<z.infer<typeof checkoutSchema>>({
     resolver: zodResolver(checkoutSchema),
@@ -151,10 +152,10 @@ export default function CheckoutForm() {
   });
 
   useEffect(() => {
-    if (cartItems.length === 0 && typeof window !== 'undefined') {
+    if (!isSuccess && cartItems.length === 0 && typeof window !== 'undefined') {
       router.push('/');
     }
-  }, [cartItems, router]);
+  }, [cartItems, router, isSuccess]);
 
   const handleCpfChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const maskedValue = maskCpf(e.target.value);
@@ -348,7 +349,7 @@ export default function CheckoutForm() {
 
   const total = getCartTotal();
 
-  if (cartItems.length === 0) {
+  if (cartItems.length === 0 && !isSuccess) {
     return null;
   }
 
@@ -514,47 +515,7 @@ export default function CheckoutForm() {
         description: `Seu pedido #${orderToSave.id} foi confirmado. Seu código é ${code}.`,
       });
 
-      if (settings.storePhone) {
-        const storePhone = settings.storePhone.replace(/\D/g, '');
-
-        const productsSummary = cartItemsWithDetails.map(item =>
-          `${item.name}\nValor: ${formatCurrency(item.price)}\nQtd: ${item.quantity} un\nSubtotal: ${formatCurrency(item.price * item.quantity)}`
-        ).join('\n\n');
-
-        const messageParts = [
-          `*Novo Pedido do Catálogo Online!*`,
-          `*Cód. Pedido:* ${orderToSave.id}`,
-          `*Vendedor:* ${order.sellerName || 'Não atribuído'}`,
-          ``,
-          `*PRODUTOS:*`,
-          productsSummary,
-          ``,
-          `---------------------------`,
-          ``,
-          `*Total da Compra:* ${formatCurrency(total)}`,
-          `*Forma de Pagamento:* ${finalPaymentMethod}`,
-          `*Condição Sugerida:* Até ${maxAllowedInstallments}x`,
-          `*Observação:* ${values.observations || '-'}`,
-          ``,
-          `---------------------------`,
-          `*DADOS DO CLIENTE:*`,
-          `${values.name}`,
-          `${values.phone}`,
-          `CPF: ${values.cpf}`,
-          `Cód. Cliente: ${code}`,
-          ``,
-          `*ENDEREÇO:*`,
-          `CEP: ${values.zip}`,
-          `${values.address}, Nº ${values.number}`,
-          `${values.neighborhood} - ${values.city}/${values.state}`,
-        ];
-
-        const message = messageParts.join('\n');
-        const encodedMessage = encodeURIComponent(message);
-        const webUrl = `https://wa.me/55${storePhone}?text=${encodedMessage}`;
-        // window.open(webUrl, '_blank'); // REMOVED: Now handled in Order Confirmation page
-      }
-
+      setIsSuccess(true);
       clearCart();
       router.push(`/order-confirmation/${orderToSave.id}?autoWhatsapp=true`);
 
@@ -620,7 +581,7 @@ export default function CheckoutForm() {
                 <div>
                   <p className="font-semibold text-primary">Pagamento via Crediário</p>
                   <p className="text-sm text-muted-foreground">
-                    O vendedor definirá as condições de parcelamento com você após a finalização do pedido.
+                    1ª parcela com vencimento para: <strong>{format(addMonths(new Date(), 1), 'dd/MM/yyyy')}</strong>
                   </p>
                 </div>
               </div>
