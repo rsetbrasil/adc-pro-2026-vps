@@ -46,6 +46,7 @@ export type Product = {
   commissionValue?: number;
   "data-ai-hint"?: string;
   createdAt: string;
+  deletedAt?: string; // Soft delete timestamp
 };
 
 export type CartItem = {

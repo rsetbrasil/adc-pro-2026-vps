@@ -145,6 +145,10 @@ interface AdminContextType {
   updateAvaria: (avariaId: string, avariaData: Partial<Omit<Avaria, 'id'>>, logAction: LogAction, user: User | null) => Promise<void>;
   deleteAvaria: (avariaId: string, logAction: LogAction, user: User | null) => Promise<void>;
   emptyTrash: (logAction: LogAction, user: User | null) => Promise<void>;
+  // Product Trash
+  restoreProduct: (product: Product, logAction: LogAction, user: User | null) => Promise<void>;
+  permanentlyDeleteProduct: (productId: string, logAction: LogAction, user: User | null) => Promise<void>;
+  fetchDeletedProducts: () => Promise<Product[]>;
   // Admin Data states
   orders: Order[];
   commissionPayments: CommissionPayment[];
@@ -356,6 +360,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
             toast({
               title: `Novo Pedido ${sourceLabel}`,
               description: `${customerName} • ${formatCurrency(newOrder.total || 0)} • Pedido ${newOrder.id}`,
+              duration: 2000
             });
 
             // Notificação do Sistema (Windows/Browser)
@@ -464,7 +469,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       setCustomers(prev => [...prev, { ...customerToSave, created_at: now, updated_at: now } as CustomerInfo].sort((a, b) => a.name.localeCompare(b.name)));
 
       logAction('Cadastro de Cliente', `Cliente ${customerToSave.name} (CPF: ${cpf}) foi cadastrado.`, user);
-      toast({ title: 'Cliente Cadastrado!', description: `${customerToSave.name} foi adicionado(a) com sucesso.` });
+      toast({ title: 'Cliente Cadastrado!', description: `${customerToSave.name} foi adicionado(a) com sucesso.`, duration: 2000 });
     } catch (e: any) {
       console.error('Error adding customer:', e);
       if (typeof e === 'object' && e !== null) {
@@ -839,6 +844,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     toast({
       title: "Produto Cadastrado!",
       description: `O produto "${newProduct.name}" foi adicionado ao catálogo.`,
+      duration: 2000
     });
   }, [toast]);
 
@@ -888,35 +894,146 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
 
     logAction('Atualização de Produto', `Produto "${productToUpdate.name}" (ID: ${productToUpdate.id}) foi atualizado.`, user);
-    toast({ title: "Produto Atualizado!", description: `"${productToUpdate.name}" foi salvo com sucesso.` });
+    toast({ title: "Produto Atualizado!", description: `"${productToUpdate.name}" foi salvo com sucesso.`, duration: 2000 });
 
-  }, []);
+  }, [updateProductLocally, toast]);
 
   const deleteProduct = useCallback(async (productId: string, logAction: LogAction, user: User | null) => {
     allowEmptyProductsFor(30_000);
     const productToDelete = products.find(p => p.id === productId);
 
-    const { error } = await supabase.from('products').delete().eq('id', productId);
+    // Soft Delete: Update deleted_at timestamp
+    const { error } = await supabase.from('products').update({ deleted_at: new Date().toISOString() }).eq('id', productId);
 
     if (error) {
-      console.error("Failed to delete product:", error.message, error.details, error.hint, JSON.stringify(error, null, 2));
-      toast({ title: "Erro", description: "Falha ao excluir produto.", variant: "destructive" });
+      console.error("AdminContext: Failed to delete product:", error);
+      toast({ title: "Erro", description: "Falha ao mover produto para lixeira.", variant: "destructive" });
       return;
     }
-
-    // Atualização otimista - UI atualiza imediatamente
+    // Atualização otimista - UI atualiza imediatamente (DataContext realtime will catch this too)
     deleteProductLocally(productId);
 
     if (productToDelete) {
-      logAction('Exclusão de Produto', `Produto "${productToDelete.name}" (ID: ${productId}) foi excluído.`, user);
+      logAction('Exclusão de Produto (Lixeira)', `Produto "${productToDelete.name}" (ID: ${productId}) enviado para lixeira.`, user);
     }
     toast({
-      title: 'Produto Excluído!',
-      description: 'O produto foi removido do catálogo.',
-      variant: 'destructive',
-      duration: 5000,
+      title: 'Produto na Lixeira',
+      description: 'O produto foi movido para a lixeira temporária.',
+      duration: 2000
     });
-  }, [products, toast, allowEmptyProductsFor]);
+  }, [products, toast, allowEmptyProductsFor, deleteProductLocally]);
+
+  const restoreProduct = useCallback(async (product: Product, logAction: LogAction, user: User | null) => {
+    const { error } = await supabase.from('products').update({ deleted_at: null }).eq('id', product.id);
+
+    if (error) {
+      console.error("Failed to restore product:", error);
+      toast({ title: "Erro", description: "Falha ao restaurar produto.", variant: "destructive" });
+      return;
+    }
+
+    // 2. Fetch fresh data to ensure integrity (especially images)
+    const { data: freshData, error: fetchError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', product.id)
+      .single();
+
+    if (freshData && !fetchError) {
+      const restored: Product = {
+        ...freshData,
+        id: freshData.id,
+        name: freshData.name,
+        description: freshData.description,
+        longDescription: freshData.long_description || freshData.longDescription,
+        price: freshData.price,
+        cost: freshData.cost,
+        category: freshData.category,
+        subcategory: freshData.subcategory,
+        stock: freshData.stock,
+        minStock: freshData.min_stock || freshData.minStock,
+        unit: freshData.unit,
+        originalPrice: freshData.original_price || freshData.originalPrice,
+        onSale: freshData.on_sale || freshData.onSale,
+        promotionEndDate: freshData.promotion_end_date || freshData.promotionEndDate,
+        imageUrl: freshData.image_url || freshData.imageUrl,
+        imageUrls: (freshData.image_urls && freshData.image_urls.length > 0)
+          ? freshData.image_urls
+          : (freshData.imageUrls && freshData.imageUrls.length > 0)
+            ? freshData.imageUrls
+            : (freshData.image_url || freshData.imageUrl) ? [freshData.image_url || freshData.imageUrl] : [],
+        maxInstallments: freshData.max_installments || freshData.maxInstallments,
+        paymentCondition: freshData.payment_condition || freshData.paymentCondition,
+        code: freshData.code,
+        commissionType: freshData.commission_type || freshData.commissionType,
+        commissionValue: freshData.commission_value || freshData.commissionValue,
+        isHidden: freshData.is_hidden || freshData.isHidden,
+        'data-ai-hint': freshData.data_ai_hint || freshData['data-ai-hint'],
+        createdAt: freshData.created_at || freshData.createdAt,
+        deletedAt: undefined
+      };
+
+      addProductLocally(restored);
+    } else {
+      // Fallback
+      addProductLocally({ ...product, deletedAt: undefined });
+    }
+
+    logAction('Restauração de Produto', `Produto "${product.name}" restaurado da lixeira.`, user);
+    toast({ title: "Produto Restaurado", description: `"${product.name}" voltou ao catálogo.`, duration: 2000 });
+  }, [toast, addProductLocally]);
+
+  const permanentlyDeleteProduct = useCallback(async (productId: string, logAction: LogAction, user: User | null) => {
+    const { error } = await supabase.from('products').delete().eq('id', productId);
+    if (error) {
+      console.error("Failed to permanently delete product:", error);
+      toast({ title: "Erro", description: "Falha ao excluir permanentemente.", variant: "destructive" });
+      return;
+    }
+    logAction('Exclusão Permanente de Produto', `Produto ID: ${productId} excluído permanentemente.`, user);
+    toast({ title: "Excluído Permanentemente", description: "Produto removido definitivamente.", duration: 2000 });
+  }, [toast]);
+
+  const fetchDeletedProducts = useCallback(async () => {
+    const { data, error } = await supabase.from('products').select('*').not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
+    if (error) {
+      console.error("Error fetching deleted products:", error);
+      return [];
+    }
+    // Map same way as DataContext
+    return data.map((p: any) => ({
+      ...p,
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      longDescription: p.long_description || p.longDescription,
+      price: p.price,
+      cost: p.cost,
+      category: p.category,
+      subcategory: p.subcategory,
+      stock: p.stock,
+      minStock: p.min_stock || p.minStock,
+      unit: p.unit,
+      originalPrice: p.original_price || p.originalPrice,
+      onSale: p.on_sale || p.onSale,
+      promotionEndDate: p.promotion_end_date || p.promotionEndDate,
+      imageUrl: p.image_url || p.imageUrl,
+      imageUrls: (p.image_urls && p.image_urls.length > 0)
+        ? p.image_urls
+        : (p.imageUrls && p.imageUrls.length > 0)
+          ? p.imageUrls
+          : (p.image_url || p.imageUrl) ? [p.image_url || p.imageUrl] : [],
+      maxInstallments: p.max_installments || p.maxInstallments,
+      paymentCondition: p.payment_condition || p.paymentCondition,
+      code: p.code,
+      commissionType: p.commission_type || p.commissionType,
+      commissionValue: p.commission_value || p.commissionValue,
+      isHidden: p.is_hidden || p.isHidden,
+      'data-ai-hint': p.data_ai_hint || p['data-ai-hint'],
+      createdAt: p.created_at || p.createdAt,
+      deletedAt: p.deleted_at
+    })) as Product[];
+  }, []);
 
   const importProducts = useCallback(async (productsToImport: Product[], logAction: LogAction, user: User | null) => {
     const validProducts = (productsToImport || []).filter((p) => p && typeof p.name === 'string' && typeof p.price === 'number');
@@ -2192,7 +2309,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     }
 
     logAction('Atualização de Detalhes do Pedido', `Detalhes do pedido #${orderId} foram atualizados.`, user);
-    toast({ title: "Pedido Atualizado!", description: `Os detalhes do pedido #${orderId} foram atualizados.` });
+    toast({ title: "Pedido Atualizado!", description: `Os detalhes do pedido #${orderId} foram atualizados.`, duration: 2000 });
   }, [orders, products, toast]);
 
   const payCommissions = useCallback(async (sellerId: string, sellerName: string, amount: number, orderIds: string[], period: string, logAction: LogAction, user: User | null): Promise<string | null> => {
@@ -2221,7 +2338,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     ));
 
     logAction('Pagamento de Comissão', `Comissão de ${sellerName} no valor de R$${amount.toFixed(2)} referente a ${period} foi paga.`, user);
-    toast({ title: "Comissão Paga!", description: `O pagamento para ${sellerName} foi registrado.` });
+    toast({ title: "Comissão Paga!", description: `O pagamento para ${sellerName} foi registrado.`, duration: 2000 });
     return paymentId;
   }, [toast]);
 
@@ -2243,7 +2360,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     ));
 
     logAction('Estorno de Comissão', `O pagamento de comissão ID ${paymentId} foi estornado.`, user);
-    toast({ title: "Pagamento Estornado!", description: "As comissões dos pedidos voltaram a ficar pendentes." });
+    toast({ title: "Pagamento Estornado!", description: "As comissões dos pedidos voltaram a ficar pendentes.", duration: 2000 });
   }, [commissionPayments, toast]);
 
   const saveStockAudit = useCallback(async (audit: StockAudit, logAction: LogAction, user: User | null) => {
@@ -2259,7 +2376,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     }
 
     logAction('Auditoria de Estoque', `Auditoria de estoque para ${audit.month}/${audit.year} foi salva.`, user);
-    toast({ title: "Auditoria Salva!", description: "O relatório de auditoria foi salvo com sucesso." });
+    toast({ title: "Auditoria Salva!", description: "O relatório de auditoria foi salvo com sucesso.", duration: 2000 });
   }, [toast]);
 
   const addAvaria = useCallback(async (avariaData: Omit<Avaria, 'id' | 'createdAt' | 'createdBy' | 'createdByName'>, logAction: LogAction, user: User | null) => {
@@ -2293,6 +2410,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     toast({
       title: "Avaria Registrada!",
       description: "O registro de avaria foi salvo com sucesso.",
+      duration: 2000
     });
   }, [toast]);
 
@@ -2316,7 +2434,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     }
 
     logAction('Atualização de Avaria', `Avaria ID ${avariaId} foi atualizada.`, user);
-    toast({ title: "Avaria Atualizada!", description: "O registro de avaria foi atualizado." });
+    toast({ title: "Avaria Atualizada!", description: "O registro de avaria foi atualizado.", duration: 2000 });
   }, [toast]);
 
   const deleteAvaria = useCallback(async (avariaId: string, logAction: LogAction, user: User | null) => {
@@ -2344,7 +2462,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     });
 
     logAction('Esvaziar Lixeira', `Todos os ${deletedOrders.length} pedidos da lixeira foram permanentemente excluídos.`, user);
-    toast({ title: 'Lixeira Esvaziada!', description: `${deletedOrders.length} pedidos foram excluídos permanentemente.` });
+    toast({ title: 'Lixeira Esvaziada!', description: `${deletedOrders.length} pedidos foram excluídos permanentemente.`, duration: 2000 });
   }, [orders, toast]);
 
   const value = useMemo(() => ({
@@ -2355,6 +2473,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     restoreAdminData, resetOrders, resetProducts, resetFinancials, resetAllAdminData,
     saveStockAudit, addAvaria, updateAvaria, deleteAvaria,
     emptyTrash,
+    restoreProduct, permanentlyDeleteProduct, fetchDeletedProducts,
     // Admin Data states
     orders,
     commissionPayments,
@@ -2375,6 +2494,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     restoreAdminData, resetOrders, resetProducts, resetFinancials, resetAllAdminData,
     saveStockAudit, addAvaria, updateAvaria, deleteAvaria,
     emptyTrash,
+    restoreProduct, permanentlyDeleteProduct, fetchDeletedProducts,
     orders, commissionPayments, stockAudits, avarias, chatSessions, customersForUI, deletedCustomers, customerOrders, customerFinancials, financialSummary, commissionSummary
   ]);
 

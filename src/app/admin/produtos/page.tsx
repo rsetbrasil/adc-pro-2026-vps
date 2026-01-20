@@ -10,19 +10,19 @@ import type { Product } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { MoreHorizontal, PlusCircle, Trash, Edit, PackageSearch, Eye, EyeOff, Search, Import, History } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash, Edit, PackageSearch, Eye, EyeOff, Search, Import, History, MoreVertical } from 'lucide-react';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
 } from '@/components/ui/dialog';
 import {
     AlertDialog,
@@ -42,11 +42,11 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 
 const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
 export default function ManageProductsPage() {
-    const { deleteProduct, importProducts } = useAdmin();
+    const { deleteProduct, restoreProduct, permanentlyDeleteProduct, fetchDeletedProducts, importProducts } = useAdmin();
     const { products } = useData();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [productToEdit, setProductToEdit] = useState<Product | null>(null);
@@ -56,9 +56,26 @@ export default function ManageProductsPage() {
     const { logAction } = useAudit();
     const { toast } = useToast();
     const [search, setSearch] = useState('');
+    const [showTrash, setShowTrash] = useState(false);
+    const [deletedProducts, setDeletedProducts] = useState<Product[]>([]);
+    const [isLoadingTrash, setIsLoadingTrash] = useState(false);
     const importInputRef = useRef<HTMLInputElement | null>(null);
     const canDelete = user?.role === 'admin' || user?.role === 'gerente';
     const canImport = user?.role === 'admin';
+
+    const loadTrash = async () => {
+        setIsLoadingTrash(true);
+        const data = await fetchDeletedProducts();
+        setDeletedProducts(data);
+        setIsLoadingTrash(false);
+    };
+
+    const toggleTrash = () => {
+        if (!showTrash) {
+            loadTrash();
+        }
+        setShowTrash(!showTrash);
+    }
 
     const handleAddNew = () => {
         setProductToEdit(null);
@@ -69,7 +86,8 @@ export default function ManageProductsPage() {
         setProductToEdit(product);
         setIsDialogOpen(true);
     };
-    
+
+    // Soft Delete Request
     const requestDelete = (product: Product) => {
         setProductToDelete(product);
         setIsDeleteDialogOpen(true);
@@ -77,10 +95,22 @@ export default function ManageProductsPage() {
 
     const confirmDelete = () => {
         if (!productToDelete) return;
-        deleteProduct(productToDelete.id, logAction, user);
+        if (showTrash) {
+            // Hard Delete
+            permanentlyDeleteProduct(productToDelete.id, logAction, user);
+            setDeletedProducts(prev => prev.filter(p => p.id !== productToDelete.id));
+        } else {
+            // Soft Delete
+            deleteProduct(productToDelete.id, logAction, user);
+        }
         setIsDeleteDialogOpen(false);
         setProductToDelete(null);
     };
+
+    const handleRestore = async (product: Product) => {
+        await restoreProduct(product, logAction, user);
+        setDeletedProducts(prev => prev.filter(p => p.id !== product.id));
+    }
 
     const handleRestoreFromCache = async () => {
         if (!user || !canImport) return;
@@ -88,17 +118,17 @@ export default function ManageProductsPage() {
         try {
             const raw = localStorage.getItem('productsCache');
             if (!raw) {
-                toast({ title: 'Cache vazio', description: 'Nenhum produto foi encontrado no cache deste navegador.', variant: 'destructive' });
+                toast({ title: 'Cache vazio', description: 'Nenhum produto foi encontrado no cache deste navegador.', variant: 'destructive', duration: 3000 });
                 return;
             }
             const parsed = JSON.parse(raw);
             if (!Array.isArray(parsed) || parsed.length === 0) {
-                toast({ title: 'Cache vazio', description: 'Nenhum produto foi encontrado no cache deste navegador.', variant: 'destructive' });
+                toast({ title: 'Cache vazio', description: 'Nenhum produto foi encontrado no cache deste navegador.', variant: 'destructive', duration: 3000 });
                 return;
             }
             await importProducts(parsed as Product[], logAction, user);
         } catch {
-            toast({ title: 'Erro ao restaurar', description: 'Falha ao ler o cache local.', variant: 'destructive' });
+            toast({ title: 'Erro ao restaurar', description: 'Falha ao ler o cache local.', variant: 'destructive', duration: 3000 });
         }
     };
 
@@ -115,7 +145,7 @@ export default function ManageProductsPage() {
                 const productsToImport = Array.isArray(parsed) ? parsed : parsed?.products;
 
                 if (!Array.isArray(productsToImport)) {
-                    toast({ title: 'Formato inválido', description: 'Use um JSON com uma lista de produtos ou um backup com a chave "products".', variant: 'destructive' });
+                    toast({ title: 'Formato inválido', description: 'Use um JSON com uma lista de produtos ou um backup com a chave "products".', variant: 'destructive', duration: 3000 });
                     return;
                 }
 
@@ -130,9 +160,10 @@ export default function ManageProductsPage() {
     };
 
     const filteredProducts = useMemo(() => {
+        const source = showTrash ? deletedProducts : products;
         const q = search.trim().toLowerCase();
-        if (!q) return products;
-        return products.filter((p) => {
+        if (!q) return source;
+        return source.filter((p) => {
             const haystack = [
                 p.name,
                 p.code,
@@ -145,40 +176,62 @@ export default function ManageProductsPage() {
                 .toLowerCase();
             return haystack.includes(q);
         });
-    }, [products, search]);
+    }, [products, deletedProducts, search, showTrash]);
 
     return (
         <>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
-                        <CardTitle>Gerenciar Produtos</CardTitle>
-                        <CardDescription>Adicione, edite ou remova produtos do seu catálogo.</CardDescription>
+                        <CardTitle>{showTrash ? 'Lixeira de Produtos' : 'Gerenciar Produtos'}</CardTitle>
+                        <CardDescription>{showTrash ? 'Restaure ou exclua permanentemente produtos.' : 'Adicione, edite ou remova produtos do seu catálogo.'}</CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                        {products.length === 0 && (
+                        {showTrash ? (
+                            <Button variant="secondary" onClick={toggleTrash}>
+                                <PackageSearch className="mr-2 h-4 w-4" />
+                                Voltar aos Produtos
+                            </Button>
+                        ) : (
                             <>
-                                <Button variant="outline" onClick={handleRestoreFromCache} disabled={!canImport}>
-                                    <History className="mr-2 h-4 w-4" />
-                                    Restaurar do cache
+                                {products.length === 0 && (
+                                    <>
+                                        <Button variant="outline" onClick={handleRestoreFromCache} disabled={!canImport}>
+                                            <History className="mr-2 h-4 w-4" />
+                                            Restaurar do cache
+                                        </Button>
+                                        <Button variant="outline" onClick={() => importInputRef.current?.click()} disabled={!canImport}>
+                                            <Import className="mr-2 h-4 w-4" />
+                                            Importar JSON
+                                        </Button>
+                                        <input
+                                            ref={importInputRef}
+                                            type="file"
+                                            accept="application/json"
+                                            className="hidden"
+                                            onChange={handleImportProductsFile}
+                                        />
+                                    </>
+                                )}
+                                <Button onClick={handleAddNew}>
+                                    <PlusCircle className="mr-2 h-4 w-4" />
+                                    Adicionar Produto
                                 </Button>
-                                <Button variant="outline" onClick={() => importInputRef.current?.click()} disabled={!canImport}>
-                                    <Import className="mr-2 h-4 w-4" />
-                                    Importar JSON
-                                </Button>
-                                <input
-                                    ref={importInputRef}
-                                    type="file"
-                                    accept="application/json"
-                                    className="hidden"
-                                    onChange={handleImportProductsFile}
-                                />
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon">
+                                            <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={toggleTrash}>
+                                            <Trash className="mr-2 h-4 w-4" />
+                                            Lixeira
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </>
                         )}
-                        <Button onClick={handleAddNew}>
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Adicionar Produto
-                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -193,7 +246,9 @@ export default function ManageProductsPage() {
                             />
                         </div>
                     </div>
-                    {filteredProducts.length > 0 ? (
+                    {isLoadingTrash && showTrash ? (
+                        <div className="text-center py-8">Carregando lixeira...</div>
+                    ) : filteredProducts.length > 0 ? (
                         <div className="rounded-md border">
                             <Table>
                                 <TableHeader>
@@ -213,11 +268,11 @@ export default function ManageProductsPage() {
                                         <TableRow key={product.id}>
                                             <TableCell>
                                                 <div className="relative h-12 w-12 rounded-md overflow-hidden bg-muted">
-                                                    <Image 
-                                                        src={(product.imageUrls && product.imageUrls.length > 0) ? product.imageUrls[0] : 'https://placehold.co/100x100.png'} 
-                                                        alt={product.name} 
-                                                        fill 
-                                                        className="object-contain" 
+                                                    <Image
+                                                        src={(product.imageUrls && product.imageUrls.length > 0) ? product.imageUrls[0] : (product.imageUrl || 'https://placehold.co/100x100.png')}
+                                                        alt={product.name}
+                                                        fill
+                                                        className="object-contain"
                                                     />
                                                 </div>
                                             </TableCell>
@@ -227,7 +282,9 @@ export default function ManageProductsPage() {
                                             <TableCell className="text-right">{formatCurrency(product.price)}</TableCell>
                                             <TableCell className="text-center">{product.stock}</TableCell>
                                             <TableCell className="text-center">
-                                                {product.isHidden ? (
+                                                {showTrash ? (
+                                                    <Badge variant="destructive">Excluído</Badge>
+                                                ) : product.isHidden ? (
                                                     <Badge variant="outline" className="text-muted-foreground">
                                                         <EyeOff className="mr-2 h-4 w-4" />
                                                         Oculto
@@ -241,28 +298,43 @@ export default function ManageProductsPage() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex justify-end items-center gap-2">
-                                                    <Button variant="outline" size="sm" onClick={() => handleEdit(product)}>
-                                                        <Edit className="mr-2 h-4 w-4" />
-                                                        Editar
-                                                    </Button>
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                                                <span className="sr-only">Abrir menu</span>
-                                                                <MoreHorizontal className="h-4 w-4" />
+                                                    {showTrash ? (
+                                                        <>
+                                                            <Button variant="outline" size="sm" onClick={() => handleRestore(product)}>
+                                                                <History className="mr-2 h-4 w-4" />
+                                                                Restaurar
                                                             </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            <DropdownMenuItem
-                                                                className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                                                                disabled={!canDelete}
-                                                                onClick={() => requestDelete(product)}
-                                                            >
+                                                            <Button variant="destructive" size="sm" onClick={() => requestDelete(product)}>
                                                                 <Trash className="mr-2 h-4 w-4" />
-                                                                Excluir
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
+                                                                Excluir Definitivamente
+                                                            </Button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Button variant="outline" size="sm" onClick={() => handleEdit(product)}>
+                                                                <Edit className="mr-2 h-4 w-4" />
+                                                                Editar
+                                                            </Button>
+                                                            <DropdownMenu>
+                                                                <DropdownMenuTrigger asChild>
+                                                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                                                        <span className="sr-only">Abrir menu</span>
+                                                                        <MoreHorizontal className="h-4 w-4" />
+                                                                    </Button>
+                                                                </DropdownMenuTrigger>
+                                                                <DropdownMenuContent align="end">
+                                                                    <DropdownMenuItem
+                                                                        className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                                                        disabled={!canDelete}
+                                                                        onClick={() => requestDelete(product)}
+                                                                    >
+                                                                        <Trash className="mr-2 h-4 w-4" />
+                                                                        Excluir
+                                                                    </DropdownMenuItem>
+                                                                </DropdownMenuContent>
+                                                            </DropdownMenu>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </TableCell>
                                         </TableRow>
@@ -273,15 +345,18 @@ export default function ManageProductsPage() {
                     ) : (
                         <div className="text-center py-16 text-muted-foreground border-2 border-dashed rounded-lg">
                             <PackageSearch className="mx-auto h-12 w-12" />
-                            <h3 className="mt-4 text-lg font-semibold">Nenhum produto encontrado</h3>
+                            <h3 className="mt-4 text-lg font-semibold">{showTrash ? 'Lixeira vazia' : 'Nenhum produto encontrado'}</h3>
                             <p className="mt-1 text-sm">
-                                {products.length === 0 ? 'Importe/restaure os produtos ou adicione um novo produto.' : 'Ajuste a busca ou adicione um novo produto.'}
+                                {showTrash
+                                    ? 'Nenhum produto foi excluído recentemente.'
+                                    : (products.length === 0 ? 'Importe/restaure os produtos ou adicione um novo produto.' : 'Ajuste a busca ou adicione um novo produto.')
+                                }
                             </p>
                         </div>
                     )}
                 </CardContent>
             </Card>
-            
+
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="max-w-4xl">
                     <DialogHeader>
@@ -300,14 +375,19 @@ export default function ManageProductsPage() {
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Excluir produto?</AlertDialogTitle>
+                        <AlertDialogTitle>{showTrash ? 'Excluir permanentemente?' : 'Mover para lixeira?'}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            {productToDelete ? `Você está prestes a excluir "${productToDelete.name}".` : 'Você está prestes a excluir este produto.'}
+                            {showTrash
+                                ? `Esta ação não pode ser desfeita. O produto "${productToDelete?.name}" será apagado do banco de dados para sempre.`
+                                : `O produto "${productToDelete?.name}" será movido para a lixeira e não aparecerá mais na loja. Você poderá restaurá-lo depois.`
+                            }
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel onClick={() => setProductToDelete(null)}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmDelete}>Excluir</AlertDialogAction>
+                        <AlertDialogAction onClick={confirmDelete} className={showTrash ? "bg-destructive hover:bg-destructive/90" : ""}>
+                            {showTrash ? 'Excluir para sempre' : 'Mover para Lixeira'}
+                        </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

@@ -31,7 +31,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addProductLocally = (product: Product) => {
-    setProducts(prev => [...prev, product]);
+    setProducts(prev => {
+      const exists = prev.some(p => p.id === product.id);
+      if (exists) {
+        return prev.map(p => p.id === product.id ? product : p);
+      }
+      return [...prev, product];
+    });
   };
 
   const deleteProductLocally = (productId: string) => {
@@ -45,44 +51,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         const { data: productsData, error: productsError } = await supabase
           .from('products')
           .select('*')
+          .is('deleted_at', null)
           .order('created_at', { ascending: true });
 
         if (productsError) throw productsError;
 
         if (productsData) {
-          const mappedProducts = productsData.map((p: any) => ({
-            ...p,
-            id: p.id,
-            name: p.name,
-            description: p.description,
-            longDescription: p.long_description || p.longDescription,
-            price: p.price,
-            cost: p.cost,
-            category: p.category,
-            subcategory: p.subcategory,
-            stock: p.stock,
-            minStock: p.min_stock || p.minStock,
-            unit: p.unit,
-            originalPrice: p.original_price || p.originalPrice,
-            onSale: p.on_sale || p.onSale,
-            promotionEndDate: p.promotion_end_date || p.promotionEndDate,
-            // Prioritize new snake_case, fallback to camelCase/legacy
-            imageUrl: p.image_url || p.imageUrl,
-            imageUrls: (p.image_urls && p.image_urls.length > 0)
-              ? p.image_urls
-              : (p.imageUrls && p.imageUrls.length > 0)
-                ? p.imageUrls
-                : (p.image_url || p.imageUrl) ? [p.image_url || p.imageUrl] : [],
-            maxInstallments: p.max_installments || p.maxInstallments,
-            paymentCondition: p.payment_condition || p.paymentCondition,
-            code: p.code,
-            commissionType: p.commission_type || p.commissionType,
-            commissionValue: p.commission_value || p.commissionValue,
-            isHidden: p.is_hidden || p.isHidden,
-            'data-ai-hint': p.data_ai_hint || p['data-ai-hint'],
-            createdAt: p.created_at || p.createdAt
-          }));
-          setProducts(mappedProducts as Product[]);
+          const mappedProducts = productsData.map(mapProductFromDB);
+          setProducts(mappedProducts);
         }
       } catch (error) {
         console.error('Error fetching products from Supabase:', error);
@@ -141,7 +117,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       commissionValue: p.commission_value || p.commissionValue,
       isHidden: p.is_hidden || p.isHidden,
       'data-ai-hint': p.data_ai_hint || p['data-ai-hint'],
-      createdAt: p.created_at || p.createdAt
+      createdAt: p.created_at || p.createdAt,
+      deletedAt: p.deleted_at || p.deletedAt,
     });
 
     const productsChannel = supabase.channel('public:products')
@@ -157,7 +134,27 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           });
         } else if (payload.eventType === 'UPDATE') {
           const updatedProduct = mapProductFromDB(newRecord);
-          setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+          const hasDeletedAtColumn = newRecord && Object.prototype.hasOwnProperty.call(newRecord, 'deleted_at');
+          const isDeletedInPayload = hasDeletedAtColumn && newRecord.deleted_at !== null;
+          const isRestoredInPayload = hasDeletedAtColumn && newRecord.deleted_at === null;
+
+          if (isDeletedInPayload) {
+            // Se foi marcado como excluído, remove da lista
+            setProducts(prev => prev.filter(p => p.id !== updatedProduct.id));
+          } else {
+            setProducts(prev => {
+              const exists = prev.some(p => p.id === updatedProduct.id);
+              if (exists) {
+                // Atualiza existente
+                return prev.map(p => p.id === updatedProduct.id ? updatedProduct : p);
+              } else if (isRestoredInPayload) {
+                // Adiciona se não existir E for uma restauração explícita
+                return [...prev, updatedProduct];
+              }
+              // Se não existe e não é restauração, ignora (produto está na lixeira)
+              return prev;
+            });
+          }
         } else if (payload.eventType === 'DELETE') {
           const deletedId = oldRecord?.id;
           if (deletedId) {
@@ -192,17 +189,25 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const isLoading = productsLoading || categoriesLoading;
 
+  // Return ONLY active products for all public/shared views
+  const activeProducts = useMemo(() => {
+    return products.filter(p => !p.deletedAt);
+  }, [products]);
+
   const value = useMemo(() => ({
-    products,
+    products: activeProducts,
     categories,
     isLoading,
     updateProductLocally,
     addProductLocally,
     deleteProductLocally,
   }), [
-    products,
+    activeProducts,
     categories,
     isLoading,
+    updateProductLocally,
+    addProductLocally,
+    deleteProductLocally,
   ]);
 
   return (
