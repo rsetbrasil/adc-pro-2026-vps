@@ -52,6 +52,34 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (productsData) {
           const mappedProducts = productsData.map((p: any) => ({
             ...p,
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            longDescription: p.long_description || p.longDescription,
+            price: p.price,
+            cost: p.cost,
+            category: p.category,
+            subcategory: p.subcategory,
+            stock: p.stock,
+            minStock: p.min_stock || p.minStock,
+            unit: p.unit,
+            originalPrice: p.original_price || p.originalPrice,
+            onSale: p.on_sale || p.onSale,
+            promotionEndDate: p.promotion_end_date || p.promotionEndDate,
+            // Prioritize new snake_case, fallback to camelCase/legacy
+            imageUrl: p.image_url || p.imageUrl,
+            imageUrls: (p.image_urls && p.image_urls.length > 0)
+              ? p.image_urls
+              : (p.imageUrls && p.imageUrls.length > 0)
+                ? p.imageUrls
+                : (p.image_url || p.imageUrl) ? [p.image_url || p.imageUrl] : [],
+            maxInstallments: p.max_installments || p.maxInstallments,
+            paymentCondition: p.payment_condition || p.paymentCondition,
+            code: p.code,
+            commissionType: p.commission_type || p.commissionType,
+            commissionValue: p.commission_value || p.commissionValue,
+            isHidden: p.is_hidden || p.isHidden,
+            'data-ai-hint': p.data_ai_hint || p['data-ai-hint'],
             createdAt: p.created_at || p.createdAt
           }));
           setProducts(mappedProducts as Product[]);
@@ -86,6 +114,33 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     // Setup Realtime for Products
     const mapProductFromDB = (p: any): Product => ({
       ...p,
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      longDescription: p.long_description || p.longDescription,
+      price: p.price,
+      cost: p.cost,
+      category: p.category,
+      subcategory: p.subcategory,
+      stock: p.stock,
+      minStock: p.min_stock || p.minStock,
+      unit: p.unit,
+      originalPrice: p.original_price || p.originalPrice,
+      onSale: p.on_sale || p.onSale,
+      promotionEndDate: p.promotion_end_date || p.promotionEndDate,
+      imageUrl: p.image_url || p.imageUrl,
+      imageUrls: (p.image_urls && p.image_urls.length > 0)
+        ? p.image_urls
+        : (p.imageUrls && p.imageUrls.length > 0)
+          ? p.imageUrls
+          : (p.image_url || p.imageUrl) ? [p.image_url || p.imageUrl] : [],
+      maxInstallments: p.max_installments || p.maxInstallments,
+      paymentCondition: p.payment_condition || p.paymentCondition,
+      code: p.code,
+      commissionType: p.commission_type || p.commissionType,
+      commissionValue: p.commission_value || p.commissionValue,
+      isHidden: p.is_hidden || p.isHidden,
+      'data-ai-hint': p.data_ai_hint || p['data-ai-hint'],
       createdAt: p.created_at || p.createdAt
     });
 
@@ -93,14 +148,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
         const newRecord = payload.new as Record<string, any> | null;
         const oldRecord = payload.old as Record<string, any> | null;
-        console.log("Product realtime event:", payload.eventType, newRecord?.id);
 
         if (payload.eventType === 'INSERT') {
-          const newProduct = mapProductFromDB(payload.new);
-          setProducts(prev => [...prev, newProduct]);
+          const newProduct = mapProductFromDB(newRecord);
+          setProducts(prev => {
+            if (prev.some(p => p.id === newProduct.id)) return prev;
+            return [...prev, newProduct];
+          });
         } else if (payload.eventType === 'UPDATE') {
-          const updatedRaw = payload.new;
-          setProducts(prev => prev.map(p => p.id === updatedRaw.id ? { ...p, ...updatedRaw } : p));
+          const updatedProduct = mapProductFromDB(newRecord);
+          setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
         } else if (payload.eventType === 'DELETE') {
           const deletedId = oldRecord?.id;
           if (deletedId) {

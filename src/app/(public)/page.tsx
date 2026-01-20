@@ -193,6 +193,7 @@ export default function Home() {
                                 fill
                                 className="object-contain p-2"
                                 sizes="50vw"
+                                unoptimized={((product.imageUrls && product.imageUrls.length > 0) ? product.imageUrls[0] : '').startsWith('data:')}
                               />
                             </div>
                             <div className="flex flex-col justify-between flex-grow">

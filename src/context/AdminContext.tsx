@@ -797,35 +797,12 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       delete newProduct.originalPrice;
     }
 
-    const { error } = await supabase.from('products').insert({
-      ...newProduct,
-      created_at: now,
-      // Map other fields to snake_case if necessary, or assume schema matches camelCase/types
-      // Supabase often uses snake_case in standard schemas, checking schema...
-      // Assuming columns are snake_case based on previous contexts.
-      // But types are camelCase. I should probably map them or ensure Supabase client handles it (it doesn't automatically).
-      // Let's check 'supabase_schema.sql' artifact or just map critical ones.
-      // Assuming matching names for now or using the 'newProduct' object directly if column names match JSON keys.
-      // If columns are snake_case, I must map.
-      // Previous DataContext used "select('*')".
-      // I will map standard fields.
-      original_price: newProduct.originalPrice,
-      on_sale: newProduct.onSale,
-      promotion_end_date: newProduct.promotionEndDate,
-      // ... mapped
-    });
-
-    // Correction: I should verify the schema. 
-    // If I just pass `newProduct`, keys like `originalPrice` won't match `original_price` unless mapped.
-    // I will use a helper or manual mapping.
-    // Re-reading previous contexts, it seems I might have used raw objects?
-    // Let's look at schema artifact if possible.
-    // I'll do a robust mapping here.
-
-    const payload = {
+    // Prepare strict payload matching Supabase schema (snake_case)
+    const dbPayload = {
       id: newProduct.id,
       name: newProduct.name,
       description: newProduct.description,
+      long_description: newProduct.longDescription,
       price: newProduct.price,
       cost: newProduct.cost,
       category: newProduct.category,
@@ -837,15 +814,24 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       on_sale: newProduct.onSale,
       promotion_end_date: newProduct.promotionEndDate,
       image_url: newProduct.imageUrl,
+      image_urls: newProduct.imageUrls,
+      max_installments: newProduct.maxInstallments,
+      payment_condition: newProduct.paymentCondition,
       code: newProduct.code,
-      created_at: newProduct.createdAt,
       commission_type: newProduct.commissionType,
-      commission_value: newProduct.commissionValue
+      commission_value: newProduct.commissionValue,
+      is_hidden: newProduct.isHidden,
+      data_ai_hint: newProduct['data-ai-hint'],
+      created_at: now,
+      created_by: user?.id, // Assuming these exist
+      created_by_name: user?.name,
     };
 
+    const { error } = await supabase.from('products').insert(dbPayload);
+
     if (error) {
-      console.error(error);
-      toast({ title: "Erro", description: "Falha ao criar produto.", variant: "destructive" });
+      console.error("Error creating product:", error);
+      toast({ title: "Erro", description: "Falha ao criar produto: " + error.message, variant: "destructive" });
       return;
     }
 
@@ -863,33 +849,33 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       delete productToUpdate.promotionEndDate;
     }
 
-    // Build payload with only columns that exist in the database
-    // Based on error, commission_type does not exist - using camelCase for columns
-    const payload: any = {
+    // Prepare strict payload matching Supabase schema (snake_case)
+    const dbPayload: any = {
       name: productToUpdate.name,
       description: productToUpdate.description,
-      longDescription: productToUpdate.longDescription,
+      long_description: productToUpdate.longDescription,
       price: productToUpdate.price,
       cost: productToUpdate.cost,
       category: productToUpdate.category,
       subcategory: productToUpdate.subcategory,
       stock: productToUpdate.stock,
-      minStock: productToUpdate.minStock,
+      min_stock: productToUpdate.minStock,
       unit: productToUpdate.unit,
-      originalPrice: productToUpdate.originalPrice,
-      onSale: productToUpdate.onSale,
-      promotionEndDate: productToUpdate.promotionEndDate,
-      imageUrl: productToUpdate.imageUrl,
-      imageUrls: productToUpdate.imageUrls,
-      maxInstallments: productToUpdate.maxInstallments,
-      isHidden: productToUpdate.isHidden,
-      paymentCondition: productToUpdate.paymentCondition,
+      original_price: productToUpdate.originalPrice,
+      on_sale: productToUpdate.onSale,
+      promotion_end_date: productToUpdate.promotionEndDate,
+      image_url: productToUpdate.imageUrl,
+      image_urls: productToUpdate.imageUrls,
+      max_installments: productToUpdate.maxInstallments,
+      payment_condition: productToUpdate.paymentCondition,
       code: productToUpdate.code,
-      commissionType: productToUpdate.commissionType,
-      commissionValue: productToUpdate.commissionValue,
+      commission_type: productToUpdate.commissionType,
+      commission_value: productToUpdate.commissionValue,
+      is_hidden: productToUpdate.isHidden,
+      // Do not update created_at or id
     };
 
-    const { error } = await supabase.from('products').update(payload).eq('id', productToUpdate.id);
+    const { error } = await supabase.from('products').update(dbPayload).eq('id', productToUpdate.id);
 
     if (error) {
       console.error("Failed to update product:", error.message, error.details, error.hint, JSON.stringify(error, null, 2));

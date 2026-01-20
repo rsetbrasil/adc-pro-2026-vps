@@ -130,6 +130,8 @@ export default function ProductForm({ productToEdit, onFinished }: ProductFormPr
     resolver: zodResolver(productSchema),
     defaultValues: productToEdit ? {
       ...productToEdit,
+      description: productToEdit.description || '',
+      longDescription: productToEdit.longDescription || '',
       price: productToEdit.price || 0,
       originalPrice: typeof productToEdit.originalPrice === 'number' ? productToEdit.originalPrice : undefined,
       cost: productToEdit.cost || 0,
@@ -144,6 +146,7 @@ export default function ProductForm({ productToEdit, onFinished }: ProductFormPr
       commissionType: productToEdit.commissionType || 'percentage',
       commissionValue: productToEdit.commissionValue || 0,
     } : {
+      code: '',
       name: '',
       description: '',
       longDescription: '',
@@ -167,6 +170,8 @@ export default function ProductForm({ productToEdit, onFinished }: ProductFormPr
   useEffect(() => {
     const defaultValues = productToEdit ? {
       ...productToEdit,
+      description: productToEdit.description || '',
+      longDescription: productToEdit.longDescription || '',
       price: productToEdit.price || 0,
       originalPrice: typeof productToEdit.originalPrice === 'number' ? productToEdit.originalPrice : undefined,
       cost: productToEdit.cost || 0,
