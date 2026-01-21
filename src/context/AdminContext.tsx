@@ -881,6 +881,9 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       // Do not update created_at or id
     };
 
+    // Atualização otimista - UI atualiza ANTES da chamada ao banco
+    updateProductLocally(updatedProduct);
+
     const { error } = await supabase.from('products').update(dbPayload).eq('id', productToUpdate.id);
 
     if (error) {
@@ -888,10 +891,6 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       toast({ title: "Erro", description: "Falha ao atualizar produto: " + (error.message || "Ver console"), variant: "destructive" });
       return;
     }
-
-    // Atualização otimista - UI atualiza imediatamente
-    updateProductLocally(updatedProduct);
-
 
     logAction('Atualização de Produto', `Produto "${productToUpdate.name}" (ID: ${productToUpdate.id}) foi atualizado.`, user);
     toast({ title: "Produto Atualizado!", description: `"${productToUpdate.name}" foi salvo com sucesso.`, duration: 2000 });
