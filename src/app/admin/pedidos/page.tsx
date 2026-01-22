@@ -576,7 +576,7 @@ Não esqueça de enviar o comprovante!`;
                         <Tabs value={activeTab} onValueChange={setActiveTab}>
                             <TabsList className="mb-4">
                                 <TabsTrigger value="active">Pedidos Ativos</TabsTrigger>
-                                {user?.role === 'admin' && <TabsTrigger value="deleted">Lixeira</TabsTrigger>}
+                                {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && <TabsTrigger value="deleted">Lixeira</TabsTrigger>}
                             </TabsList>
                             <TabsContent value="active">
                                 <div className="flex flex-wrap gap-4 mb-6 p-4 border rounded-lg bg-muted/50">
@@ -804,7 +804,7 @@ Não esqueça de enviar o comprovante!`;
                                                                                 )}
                                                                             </DropdownMenuContent>
                                                                         </DropdownMenu>
-                                                                        {user?.role === 'admin' && (
+                                                                        {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && (
                                                                             <DropdownMenu>
                                                                                 <DropdownMenuTrigger asChild>
                                                                                     <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -872,28 +872,30 @@ Não esqueça de enviar o comprovante!`;
                                             onChange={(e) => handleFilterChange('search', e.target.value)}
                                         />
                                     </div>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="destructive" disabled={deletedOrders.length === 0}>
-                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                Esvaziar Lixeira ({deletedOrders.length})
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Esvaziar a lixeira?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    Esta ação não pode ser desfeita. Isso irá apagar permanentemente todos os {deletedOrders.length} pedidos na lixeira.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                <AlertDialogAction onClick={handleEmptyTrash}>
-                                                    Sim, Esvaziar Lixeira
-                                                </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
+                                    {user?.role === 'admin' && (
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="destructive" disabled={deletedOrders.length === 0}>
+                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                    Esvaziar Lixeira ({deletedOrders.length})
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Esvaziar a lixeira?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Esta ação não pode ser desfeita. Isso irá apagar permanentemente todos os {deletedOrders.length} pedidos na lixeira.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={handleEmptyTrash}>
+                                                        Sim, Esvaziar Lixeira
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    )}
                                 </div>
                                 {paginatedDeletedOrders.length > 0 ? (
                                     <>
@@ -921,28 +923,30 @@ Não esqueça de enviar o comprovante!`;
                                                                         <History className="mr-2 h-4 w-4" />
                                                                         Restaurar
                                                                     </Button>
-                                                                    <AlertDialog>
-                                                                        <AlertDialogTrigger asChild>
-                                                                            <Button variant="destructive" outline size="sm">
-                                                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                                                Excluir
-                                                                            </Button>
-                                                                        </AlertDialogTrigger>
-                                                                        <AlertDialogContent>
-                                                                            <AlertDialogHeader>
-                                                                                <AlertDialogTitle>Excluir Permanentemente?</AlertDialogTitle>
-                                                                                <AlertDialogDescription>
-                                                                                    Esta ação é irreversível e irá apagar permanentemente o pedido <span className="font-bold">{order.id}</span>. Você tem certeza?
-                                                                                </AlertDialogDescription>
-                                                                            </AlertDialogHeader>
-                                                                            <AlertDialogFooter>
-                                                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                                                <AlertDialogAction onClick={() => handlePermanentlyDeleteOrder(order.id)}>
-                                                                                    Sim, Excluir
-                                                                                </AlertDialogAction>
-                                                                            </AlertDialogFooter>
-                                                                        </AlertDialogContent>
-                                                                    </AlertDialog>
+                                                                    {user?.role === 'admin' && (
+                                                                        <AlertDialog>
+                                                                            <AlertDialogTrigger asChild>
+                                                                                <Button variant="destructive" outline size="sm">
+                                                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                                                    Excluir
+                                                                                </Button>
+                                                                            </AlertDialogTrigger>
+                                                                            <AlertDialogContent>
+                                                                                <AlertDialogHeader>
+                                                                                    <AlertDialogTitle>Excluir Permanentemente?</AlertDialogTitle>
+                                                                                    <AlertDialogDescription>
+                                                                                        Esta ação é irreversível e irá apagar permanentemente o pedido <span className="font-bold">{order.id}</span>. Você tem certeza?
+                                                                                    </AlertDialogDescription>
+                                                                                </AlertDialogHeader>
+                                                                                <AlertDialogFooter>
+                                                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                                                    <AlertDialogAction onClick={() => handlePermanentlyDeleteOrder(order.id)}>
+                                                                                        Sim, Excluir
+                                                                                    </AlertDialogAction>
+                                                                                </AlertDialogFooter>
+                                                                            </AlertDialogContent>
+                                                                        </AlertDialog>
+                                                                    )}
                                                                 </div>
                                                             </TableCell>
                                                         </TableRow>

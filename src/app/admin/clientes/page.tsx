@@ -546,7 +546,7 @@ Não esqueça de enviar o comprovante!`;
     };
 
     const canDeleteCustomer = user?.role === 'admin' || user?.role === 'gerente';
-    const canAccessTrash = user?.role === 'admin';
+    const canAccessTrash = user?.role === 'admin' || user?.role === 'gerente';
     const isAdmin = user?.role === 'admin';
 
     const sellersForFilter = useMemo(() => {
@@ -730,30 +730,32 @@ Não esqueça de enviar o comprovante!`;
                                                         <Button variant="ghost" size="sm" onClick={() => handleRestoreCustomer(customer)}>
                                                             <History className="mr-2 h-4 w-4" /> Restaurar
                                                         </Button>
-                                                        <AlertDialog>
-                                                            <AlertDialogTrigger asChild>
-                                                                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                                                                    <Trash2 className="mr-2 h-4 w-4" /> Excluir
-                                                                </Button>
-                                                            </AlertDialogTrigger>
-                                                            <AlertDialogContent>
-                                                                <AlertDialogHeader>
-                                                                    <AlertDialogTitle>Excluir contato da lixeira?</AlertDialogTitle>
-                                                                    <AlertDialogDescription>
-                                                                        Essa ação remove o cliente da lixeira e não pode ser desfeita.
-                                                                    </AlertDialogDescription>
-                                                                </AlertDialogHeader>
-                                                                <AlertDialogFooter>
-                                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                                    <AlertDialogAction
-                                                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                                        onClick={() => handlePermanentDeleteCustomerFromTrash(customer)}
-                                                                    >
-                                                                        Excluir
-                                                                    </AlertDialogAction>
-                                                                </AlertDialogFooter>
-                                                            </AlertDialogContent>
-                                                        </AlertDialog>
+                                                        {isAdmin && (
+                                                            <AlertDialog>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                                                                        <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                                                                    </Button>
+                                                                </AlertDialogTrigger>
+                                                                <AlertDialogContent>
+                                                                    <AlertDialogHeader>
+                                                                        <AlertDialogTitle>Excluir contato da lixeira?</AlertDialogTitle>
+                                                                        <AlertDialogDescription>
+                                                                            Essa ação remove o cliente da lixeira e não pode ser desfeita.
+                                                                        </AlertDialogDescription>
+                                                                    </AlertDialogHeader>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                                        <AlertDialogAction
+                                                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                                            onClick={() => handlePermanentDeleteCustomerFromTrash(customer)}
+                                                                        >
+                                                                            Excluir
+                                                                        </AlertDialogAction>
+                                                                    </AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
@@ -790,7 +792,7 @@ Não esqueça de enviar o comprovante!`;
                                                 <Pencil className="mr-2 h-4 w-4" />
                                                 Editar
                                             </Button>
-                                            {user?.role === 'admin' && (
+                                            {(user?.role === 'admin' || user?.role === 'gerente') && (
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
                                                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -1121,7 +1123,7 @@ Não esqueça de enviar o comprovante!`;
                                                                             </Link>
                                                                         </Button>
                                                                     )}
-                                                                    {(user?.role === 'admin' || user?.role === 'gerente') && (
+                                                                    {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && (
                                                                         <AlertDialog>
                                                                             <AlertDialogTrigger asChild>
                                                                                 <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
