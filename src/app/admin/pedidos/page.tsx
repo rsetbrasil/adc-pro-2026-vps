@@ -576,7 +576,7 @@ Não esqueça de enviar o comprovante!`;
                         <Tabs value={activeTab} onValueChange={setActiveTab}>
                             <TabsList className="mb-4">
                                 <TabsTrigger value="active">Pedidos Ativos</TabsTrigger>
-                                <TabsTrigger value="deleted">Lixeira</TabsTrigger>
+                                {user?.role === 'admin' && <TabsTrigger value="deleted">Lixeira</TabsTrigger>}
                             </TabsList>
                             <TabsContent value="active">
                                 <div className="flex flex-wrap gap-4 mb-6 p-4 border rounded-lg bg-muted/50">
@@ -804,19 +804,21 @@ Não esqueça de enviar o comprovante!`;
                                                                                 )}
                                                                             </DropdownMenuContent>
                                                                         </DropdownMenu>
-                                                                        <DropdownMenu>
-                                                                            <DropdownMenuTrigger asChild>
-                                                                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                                                    <MoreHorizontal className="h-4 w-4" />
-                                                                                </Button>
-                                                                            </DropdownMenuTrigger>
-                                                                            <DropdownMenuContent align="end">
-                                                                                <DropdownMenuItem onClick={() => handleDeleteOrder(order.id)} className="text-destructive">
-                                                                                    <Trash className="mr-2 h-4 w-4" />
-                                                                                    Mover para Lixeira
-                                                                                </DropdownMenuItem>
-                                                                            </DropdownMenuContent>
-                                                                        </DropdownMenu>
+                                                                        {user?.role === 'admin' && (
+                                                                            <DropdownMenu>
+                                                                                <DropdownMenuTrigger asChild>
+                                                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                                                        <MoreHorizontal className="h-4 w-4" />
+                                                                                    </Button>
+                                                                                </DropdownMenuTrigger>
+                                                                                <DropdownMenuContent align="end">
+                                                                                    <DropdownMenuItem onClick={() => handleDeleteOrder(order.id)} className="text-destructive">
+                                                                                        <Trash className="mr-2 h-4 w-4" />
+                                                                                        Mover para Lixeira
+                                                                                    </DropdownMenuItem>
+                                                                                </DropdownMenuContent>
+                                                                            </DropdownMenu>
+                                                                        )}
                                                                     </div>
                                                                 </TableCell>
                                                             </TableRow>

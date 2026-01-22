@@ -546,7 +546,7 @@ Não esqueça de enviar o comprovante!`;
     };
 
     const canDeleteCustomer = user?.role === 'admin' || user?.role === 'gerente';
-    const canAccessTrash = user?.role === 'admin' || user?.role === 'gerente';
+    const canAccessTrash = user?.role === 'admin';
     const isAdmin = user?.role === 'admin';
 
     const sellersForFilter = useMemo(() => {
@@ -790,7 +790,7 @@ Não esqueça de enviar o comprovante!`;
                                                 <Pencil className="mr-2 h-4 w-4" />
                                                 Editar
                                             </Button>
-                                            {canDeleteCustomer && (
+                                            {user?.role === 'admin' && (
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
                                                         <Button variant="ghost" size="icon" className="h-8 w-8">
