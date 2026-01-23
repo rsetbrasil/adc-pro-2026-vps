@@ -60,7 +60,7 @@ export default function ManageProductsPage() {
     const [deletedProducts, setDeletedProducts] = useState<Product[]>([]);
     const [isLoadingTrash, setIsLoadingTrash] = useState(false);
     const importInputRef = useRef<HTMLInputElement | null>(null);
-    const canDelete = user?.role === 'admin' || user?.role === 'gerente';
+    const canDelete = user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor';
     const canImport = user?.role === 'admin';
 
     const loadTrash = async () => {
@@ -304,10 +304,12 @@ export default function ManageProductsPage() {
                                                                 <History className="mr-2 h-4 w-4" />
                                                                 Restaurar
                                                             </Button>
-                                                            <Button variant="destructive" size="sm" onClick={() => requestDelete(product)}>
-                                                                <Trash className="mr-2 h-4 w-4" />
-                                                                Excluir Definitivamente
-                                                            </Button>
+                                                            {user?.role === 'admin' && (
+                                                                <Button variant="destructive" size="sm" onClick={() => requestDelete(product)}>
+                                                                    <Trash className="mr-2 h-4 w-4" />
+                                                                    Excluir Definitivamente
+                                                                </Button>
+                                                            )}
                                                         </>
                                                     ) : (
                                                         <>
