@@ -95,7 +95,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           setProducts(mappedProducts);
         }
       } catch (error) {
-        console.error('Error fetching products from Supabase:', error);
+        console.error('Error fetching products from Supabase:', error instanceof Error ? error.message : JSON.stringify(error));
       } finally {
         setProductsLoading(false);
       }

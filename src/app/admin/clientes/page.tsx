@@ -6,6 +6,7 @@ import React, { useState, useEffect, useMemo, useCallback, ChangeEvent, DragEven
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAdmin, useAdminData } from '@/context/AdminContext';
+import { useData } from '@/context/DataContext';
 import type { Order, CustomerInfo, Installment, Attachment, Payment, User } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -35,6 +36,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+
+
+import { OrderEditDialog } from '@/components/OrderEditDialog';
 
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -90,6 +94,7 @@ const resizeImage = (file: File, MAX_WIDTH = 1920, MAX_HEIGHT = 1080): Promise<s
 };
 
 function CustomersAdminPageInner() {
+    const { products } = useData();
     const { updateCustomer, recordInstallmentPayment, updateInstallmentDueDate, updateOrderDetails, reversePayment, importCustomers, addCustomer, deleteCustomer, restoreCustomerFromTrash, permanentlyDeleteCustomerFromTrash, updateOrderStatus, generateCustomerCodes, deleteOrder } = useAdmin();
     const { customers, customerOrders, customerFinancials, deletedCustomers } = useAdminData();
     const { user, users } = useAuth();
@@ -116,6 +121,8 @@ function CustomersAdminPageInner() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const lastAutofilledZipRef = useRef<string | null>(null);
     const [isGeneratingCustomerCodes, setIsGeneratingCustomerCodes] = useState(false);
+    const [isOrderEditDialogOpen, setIsOrderEditDialogOpen] = useState(false);
+    const [orderToEdit, setOrderToEdit] = useState<Order | null>(null);
 
     const [commentDialog, setCommentDialog] = useState<{
         open: boolean;
@@ -197,6 +204,22 @@ function CustomersAdminPageInner() {
         return customerFinancials[customerKey] || { totalComprado: 0, totalPago: 0, saldoDevedor: 0 };
     }, [selectedCustomer, customerFinancials]);
 
+
+    useEffect(() => {
+        if (orderToEdit && selectedCustomer) {
+            const customerKey = getCustomerKey(selectedCustomer);
+            const allOrders = customerOrders[customerKey] || [];
+            const updated = allOrders.find(o => o.id === orderToEdit.id);
+            if (updated && JSON.stringify(updated) !== JSON.stringify(orderToEdit)) {
+                setOrderToEdit(updated);
+            }
+        }
+    }, [customerOrders, selectedCustomer, orderToEdit]);
+
+    const handleOpenOrderEdit = (order: Order) => {
+        setOrderToEdit(order);
+        setIsOrderEditDialogOpen(true);
+    };
 
     const handleOpenPaymentDialog = (order: Order, installment: Installment) => {
         setOrderForPayment(order);
@@ -934,7 +957,10 @@ Não esqueça de enviar o comprovante!`;
                                                 const isPixPaid = order.paymentMethod === 'Pix' && (isLegacyPix || !!order.asaas?.paidAt);
                                                 const isImmediatePaid = order.paymentMethod === 'Dinheiro' || isPixPaid;
                                                 const isPaidOff = allInstallmentsPaid || isImmediatePaid;
-                                                const productNames = order.items.map(item => item.name).join(', ');
+                                                const productNames = order.items.map(item => {
+                                                    const product = products.find(p => p.id === item.id);
+                                                    return product?.code ? `${item.name} (Cód: ${product.code})` : item.name;
+                                                }).join(', ');
 
                                                 return (
                                                     <AccordionItem value={order.id} key={order.id} className="border-b-0 rounded-lg border bg-background">
@@ -979,11 +1005,11 @@ Não esqueça de enviar o comprovante!`;
                                                                                     <React.Fragment key={uniqueKey}>
                                                                                         <TableRow>
                                                                                             <TableCell colSpan={5} className="p-0">
-                                                                                                <div className='flex items-center justify-between p-3 gap-4 text-sm w-full'>
+                                                                                                <div className='flex items-center justify-between p-3 gap-2 text-sm w-full'>
                                                                                                     <div className="whitespace-nowrap"><span className="font-medium">Parcela:</span> {inst.installmentNumber}/{order.installments}</div>
                                                                                                     <Popover open={openDueDatePopover === uniqueKey} onOpenChange={(isOpen) => setOpenDueDatePopover(isOpen ? uniqueKey : null)}>
                                                                                                         <PopoverTrigger asChild>
-                                                                                                            <Button variant={"outline"} className="w-[150px] justify-start text-left font-normal text-xs" disabled={inst.status === 'Pago'}>
+                                                                                                            <Button variant={"outline"} className="w-[135px] justify-start text-left font-normal text-xs px-2" disabled={inst.status === 'Pago'}>
                                                                                                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                                                                                                 Venc: {format(new Date(inst.dueDate), 'dd/MM/yyyy')}
                                                                                                             </Button>
@@ -993,26 +1019,26 @@ Não esqueça de enviar o comprovante!`;
                                                                                                         </PopoverContent>
                                                                                                     </Popover>
                                                                                                     <div className="whitespace-nowrap"><span className="font-medium">Valor:</span> {formatCurrency(inst.amount)}</div>
-                                                                                                    <div className="min-w-[150px] text-right"><Badge variant={statusVariant}>{statusText}</Badge></div>
+                                                                                                    <div className="min-w-[80px] text-right"><Badge variant={statusVariant}>{statusText}</Badge></div>
 
-                                                                                                    <div className="flex gap-2 justify-end ml-4">
-                                                                                                        <Button variant="ghost" size="sm" className="bg-green-500/10 text-green-700 hover:bg-green-500/20 hover:text-green-800" onClick={() => handleSendWhatsAppReminder(order, inst)}>
+                                                                                                    <div className="flex gap-1 justify-end ml-auto">
+                                                                                                        <Button variant="ghost" size="icon" className="bg-green-500/10 text-green-700 hover:bg-green-500/20 hover:text-green-800 h-8 w-8" onClick={() => handleSendWhatsAppReminder(order, inst)}>
                                                                                                             <WhatsAppIcon />
                                                                                                         </Button>
                                                                                                         {user && (
                                                                                                             <>
                                                                                                                 {(inst.payments && inst.payments.length > 0) && (
-                                                                                                                    <Button variant="ghost" size="sm" onClick={() => setExpandedHistory(isExpanded ? null : uniqueKey)}>
-                                                                                                                        <History className="mr-2 h-4 w-4" />Histórico
+                                                                                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpandedHistory(isExpanded ? null : uniqueKey)} title="Histórico">
+                                                                                                                        <History className="h-4 w-4" />
                                                                                                                     </Button>
                                                                                                                 )}
-                                                                                                                <Button variant="outline" size="sm" onClick={() => handleOpenPaymentDialog(order, inst)} disabled={inst.status === 'Pago'}>
+                                                                                                                <Button variant="outline" size="sm" className="px-2" onClick={() => handleOpenPaymentDialog(order, inst)} disabled={inst.status === 'Pago'}>
                                                                                                                     <CheckCircle className="mr-2 h-4 w-4 text-green-600" />
                                                                                                                     Pagar
                                                                                                                 </Button>
                                                                                                             </>
                                                                                                         )}
-                                                                                                        <Button variant="outline" size="sm" asChild>
+                                                                                                        <Button variant="outline" size="sm" className="px-2" asChild>
                                                                                                             <Link href={`/carnet/${order.id}/${inst.installmentNumber}`} target="_blank" rel="noopener noreferrer">
                                                                                                                 <Printer className="mr-2 h-4 w-4" />
                                                                                                                 Ver
@@ -1087,24 +1113,30 @@ Não esqueça de enviar o comprovante!`;
                                                                 ) : (
                                                                     <p className="text-muted-foreground text-sm text-center py-4">Este pedido foi pago por {order.paymentMethod} e não possui parcelas.</p>
                                                                 )}
-                                                                <div className="flex justify-between items-center mt-4 pt-4 border-t flex-wrap gap-2">
+                                                                <div className="flex items-center mt-4 pt-4 border-t flex-wrap gap-2">
                                                                     <div className="flex gap-2 items-center">
-                                                                        <Button variant="outline" size="sm" onClick={() => handleAssignToMe(order)}>
-                                                                            <UserPlus className="mr-2 h-4 w-4" />
-                                                                            Atribuir a Mim
+                                                                        <Button variant="outline" size="sm" onClick={() => handleOpenOrderEdit(order)}>
+                                                                            <Pencil className="mr-2 h-4 w-4" />
+                                                                            Editar
                                                                         </Button>
+
                                                                         <DropdownMenu>
                                                                             <DropdownMenuTrigger asChild>
-                                                                                <Button variant="ghost" size="sm">
-                                                                                    Atribuir a Outro...
+                                                                                <Button variant="outline" size="sm">
+                                                                                    <UserPlus className="mr-2 h-4 w-4" />
+                                                                                    Atribuir
                                                                                 </Button>
                                                                             </DropdownMenuTrigger>
                                                                             <DropdownMenuContent align="start">
-                                                                                <DropdownMenuLabel>Selecione o Vendedor</DropdownMenuLabel>
+                                                                                <DropdownMenuLabel>Atribuir Pedido</DropdownMenuLabel>
+                                                                                <DropdownMenuItem onClick={() => handleAssignToMe(order)}>
+                                                                                    Atribuir a Mim
+                                                                                </DropdownMenuItem>
                                                                                 <DropdownMenuSeparator />
+                                                                                <DropdownMenuLabel>Outros Vendedores</DropdownMenuLabel>
                                                                                 {assignableSellers.length > 0 ? (
                                                                                     assignableSellers.map(s => (
-                                                                                        <DropdownMenuItem key={s.id} onSelect={() => handleAssignSeller(order, s)}>
+                                                                                        <DropdownMenuItem key={s.id} onClick={() => handleAssignSeller(order, s)}>
                                                                                             {s.name}
                                                                                         </DropdownMenuItem>
                                                                                     ))
@@ -1119,16 +1151,16 @@ Não esqueça de enviar o comprovante!`;
                                                                         <Button variant="ghost" size="sm" asChild>
                                                                             <Link href={`/carnet/${order.id}`} target="_blank" rel="noopener noreferrer">
                                                                                 <FileText className="mr-2 h-4 w-4" />
-                                                                                Ver Carnê Completo
+                                                                                Carnê
                                                                             </Link>
                                                                         </Button>
                                                                     )}
                                                                     {(user?.role === 'admin' || user?.role === 'gerente' || user?.role === 'vendedor') && (
                                                                         <AlertDialog>
                                                                             <AlertDialogTrigger asChild>
-                                                                                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                                                                                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive ml-auto">
                                                                                     <Trash2 className="mr-2 h-4 w-4" />
-                                                                                    Excluir Pedido
+                                                                                    Excluir
                                                                                 </Button>
                                                                             </AlertDialogTrigger>
                                                                             <AlertDialogContent>
@@ -1428,6 +1460,11 @@ Não esqueça de enviar o comprovante!`;
                     onSubmit={handlePaymentSubmit}
                 />
             )}
+            <OrderEditDialog
+                open={isOrderEditDialogOpen}
+                onOpenChange={setIsOrderEditDialogOpen}
+                order={orderToEdit}
+            />
         </>
     );
 }

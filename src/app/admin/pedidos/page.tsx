@@ -58,6 +58,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 
+import { OrderEditDialog } from '@/components/OrderEditDialog';
+
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
@@ -125,12 +127,7 @@ export default function OrdersAdminPage() {
     const [isClient, setIsClient] = useState(false);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-    const [installmentsInput, setInstallmentsInput] = useState(1);
     const [editedInstallmentValues, setEditedInstallmentValues] = useState<{ [key: number]: string }>({});
-    const [commissionInput, setCommissionInput] = useState('0,00');
-    const [observationsInput, setObservationsInput] = useState('');
-    const [discountInput, setDiscountInput] = useState(0);
-    const [downPaymentInput, setDownPaymentInput] = useState(0);
     const [openDueDatePopover, setOpenDueDatePopover] = useState<string | null>(null);
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
     const [installmentToPay, setInstallmentToPay] = useState<Installment | null>(null);
@@ -292,15 +289,7 @@ export default function OrdersAdminPage() {
         return { paginatedDeletedOrders: paginated, totalDeletedPages: total };
     }, [deletedOrders, deletedPage]);
 
-    const maxAllowedInstallmentsForSelectedOrder = useMemo(() => {
-        if (!selectedOrder || !products) return 10;
-        const orderProductIds = selectedOrder.items.map(item => item.id);
-        const orderProducts = products.filter(p => orderProductIds.includes(p.id));
-        if (orderProducts.length === 0) return 10;
 
-        const maxInstallmentsArray = orderProducts.map(p => p.maxInstallments ?? 10);
-        return Math.min(...maxInstallmentsArray);
-    }, [selectedOrder, products]);
 
     const handleFilterChange = (filterName: keyof typeof filters, value: string | boolean) => {
         setFilters(prev => {
@@ -344,50 +333,17 @@ export default function OrdersAdminPage() {
             if (updatedOrderInList && JSON.stringify(updatedOrderInList) !== JSON.stringify(selectedOrder)) {
                 setSelectedOrder(updatedOrderInList);
             }
-            setInstallmentsInput(updatedOrderInList?.installments || 1);
-            setEditedInstallmentValues({});
-            setCommissionInput(formatBRL(updatedOrderInList?.commission));
-            setObservationsInput(updatedOrderInList?.observations || '');
-            setDiscountInput(updatedOrderInList?.discount || 0);
         }
     }, [orders, selectedOrder]);
 
     const handleOpenDetails = (order: Order) => {
         markAsViewed(order.id);
         setSelectedOrder(order);
-        setInstallmentsInput(order.installments);
         setEditedInstallmentValues({});
-        setCommissionInput(formatBRL(order.commission));
-        setObservationsInput(order.observations || '');
-        setDiscountInput(order.discount || 0);
-        setDownPaymentInput(0);
         setIsDetailModalOpen(true);
     }
 
-    const handleUpdateOrderStatus = (status: Order['status']) => {
-        if (selectedOrder) {
-            updateOrderStatus(selectedOrder.id, status, logAction, user);
-        }
-    };
 
-    const handleUpdatePaymentMethod = (paymentMethod: PaymentMethod) => {
-        if (!selectedOrder) return;
-        updateOrderDetails(selectedOrder.id, { paymentMethod }, logAction, user);
-    };
-
-    const handleUpdateInstallments = () => {
-        if (!selectedOrder || !installmentsInput) return;
-
-        if (installmentsInput > maxAllowedInstallmentsForSelectedOrder) {
-            toast({ title: "Limite de Parcelas Excedido", description: `O número máximo de parcelas para este pedido é ${maxAllowedInstallmentsForSelectedOrder}.`, variant: "destructive" });
-            return;
-        }
-
-        updateOrderDetails(selectedOrder.id, {
-            installments: installmentsInput,
-            discount: discountInput
-        }, logAction, user);
-    };
 
     const handleOpenPaymentDialog = (installment: Installment) => {
         setInstallmentToPay(installment);
@@ -447,54 +403,7 @@ export default function OrdersAdminPage() {
         handleAssignSeller(order, user);
     }
 
-    const handleCalculateCommission = () => {
-        if (!selectedOrder) return;
-        updateOrderDetails(selectedOrder.id, { isCommissionManual: false }, logAction, user);
-        toast({ title: 'Comissão Recalculada!', description: `A comissão do pedido #${selectedOrder.id} foi recalculada.` });
-    };
 
-    const handleUpdateCommission = () => {
-        if (!selectedOrder) return;
-        const value = parseFloat(commissionInput.replace(',', '.'));
-        if (isNaN(value) || value < 0) {
-            toast({ title: 'Valor inválido', description: 'Por favor, insira um valor de comissão válido.', variant: 'destructive' });
-            return;
-        }
-        updateOrderDetails(selectedOrder.id, { commission: value, isCommissionManual: true }, logAction, user);
-    }
-
-    const handleUpdateDiscount = () => {
-        if (!selectedOrder) return;
-        const subtotal = selectedOrder.items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-
-        if (isNaN(discountInput) || discountInput < 0 || discountInput > subtotal) {
-            toast({ title: 'Desconto inválido', description: 'O valor do desconto não pode ser negativo ou maior que o subtotal do pedido.', variant: 'destructive' });
-            return;
-        }
-
-        updateOrderDetails(selectedOrder.id, { discount: discountInput }, logAction, user);
-    };
-
-    const handleAddDownPayment = () => {
-        if (!selectedOrder) return;
-        if (isNaN(downPaymentInput) || downPaymentInput <= 0) {
-            toast({ title: 'Valor inválido', description: 'Por favor, insira um valor de entrada válido.', variant: 'destructive' });
-            return;
-        }
-
-        updateOrderDetails(selectedOrder.id, { downPayment: downPaymentInput }, logAction, user);
-        setDownPaymentInput(0);
-    };
-
-    const handleResetDownPayment = () => {
-        if (!selectedOrder) return;
-        updateOrderDetails(selectedOrder.id, { downPayment: 0, resetDownPayment: true }, logAction, user);
-    };
-
-    const handleUpdateObservations = () => {
-        if (!selectedOrder) return;
-        updateOrderDetails(selectedOrder.id, { observations: observationsInput }, logAction, user);
-    };
 
     const handleEmptyTrash = () => {
         emptyTrash(logAction, user);
@@ -1032,407 +941,11 @@ Não esqueça de enviar o comprovante!`;
                 </table>
             </div>
 
-            <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
-                <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-                    {selectedOrder && (
-                        <>
-                            <DialogHeader>
-                                <DialogTitle>Pedido: {selectedOrder.id}</DialogTitle>
-                                <DialogDescription>
-                                    Gerencie o status, faturamento e detalhes do pedido.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="flex-grow overflow-y-auto p-1 pr-4 -mr-4 space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <Card>
-                                        <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                                            <UserIcon className="w-8 h-8 text-primary" />
-                                            <CardTitle className="text-lg">Cliente</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="text-sm space-y-1">
-                                            <p><strong>Nome:</strong> {selectedOrder.customer.name}</p>
-                                            <p><strong>CPF:</strong> {selectedOrder.customer.cpf}</p>
-                                            <p><strong>Telefone:</strong> {selectedOrder.customer.phone}</p>
-                                            <p><strong>Endereço:</strong> {`${selectedOrder.customer.address}, ${selectedOrder.customer.city}`}</p>
-                                            <Link href={`/admin/clientes?cpf=${selectedOrder.customer.cpf}`} className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'mt-2')}>
-                                                <Eye className='mr-2' /> Ver Cadastro Completo
-                                            </Link>
-                                        </CardContent>
-                                    </Card>
-
-                                    <Card>
-                                        <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                                            <ShoppingBag className="w-8 h-8 text-primary" />
-                                            <CardTitle className="text-lg">Resumo da Compra</CardTitle>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <div className="space-y-2 text-sm">
-                                                {selectedOrder.items.map(item => (
-                                                    <div key={item.id} className="flex justify-between items-center">
-                                                        <span>{item.name} x {item.quantity}</span>
-                                                        <span>{formatCurrency(item.price * item.quantity)}</span>
-                                                    </div>
-                                                ))}
-                                                <Separator />
-                                                {(selectedOrder.downPayment || 0) > 0 && (
-                                                    <div className="flex justify-between items-center text-green-600">
-                                                        <span>Entrada</span>
-                                                        <span>- {formatCurrency(selectedOrder.downPayment || 0)}</span>
-                                                    </div>
-                                                )}
-                                                {(selectedOrder.discount || 0) > 0 && (
-                                                    <div className="flex justify-between items-center text-destructive">
-                                                        <span>Desconto</span>
-                                                        <span>- {formatCurrency(selectedOrder.discount || 0)}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <Separator className="my-3" />
-                                            <div className="flex justify-between font-bold text-base">
-                                                <span>TOTAL</span>
-                                                <span>{formatCurrency(selectedOrder.total)}</span>
-                                            </div>
-                                            <div className="flex justify-between text-sm mt-2">
-                                                <span>Vendedor:</span>
-                                                <span>{selectedOrder.sellerName}</span>
-                                            </div>
-                                            <Separator className="my-3" />
-
-                                            {selectedOrder.status === 'Entregue' && (
-                                                <>
-                                                    <div className="flex justify-between text-base items-center">
-                                                        <span className="font-semibold text-green-600 flex items-center gap-2"><Percent />Comissão:</span>
-                                                        {isManagerOrAdmin ? (
-                                                            <div className="flex gap-2 items-center">
-                                                                <span className="text-sm">R$</span>
-                                                                <Input
-                                                                    type="text"
-                                                                    value={commissionInput}
-                                                                    onChange={(e) => setCommissionInput(e.target.value)}
-                                                                    onKeyDown={(e) => { if (e.key === 'Enter') handleUpdateCommission() }}
-                                                                    className="w-24 h-8 text-right"
-                                                                />
-                                                                <Button size="icon" variant="outline" onClick={handleCalculateCommission} className="h-8 w-8">
-                                                                    <Calculator className="h-4 w-4" />
-                                                                </Button>
-                                                                <Button size="icon" variant="outline" onClick={handleUpdateCommission} className="h-8 w-8">
-                                                                    <Save className="h-4 w-4" />
-                                                                </Button>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="font-bold text-green-600">{formatCurrency(selectedOrder.commission || 0)}</span>
-                                                        )}
-                                                    </div>
-                                                    {selectedOrder.isCommissionManual && <p className="text-xs text-muted-foreground text-right">Valor de comissão manual</p>}
-                                                </>
-                                            )}
-                                        </CardContent>
-                                    </Card>
-                                </div>
-
-                                <Card>
-                                    <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                                        <Clock className="w-8 h-8 text-primary" />
-                                        <CardTitle className="text-lg">Criação</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="text-sm space-y-1">
-                                        <div className="flex flex-col gap-1">
-                                            <p><span className="font-semibold">Criado por:</span> {selectedOrder.createdByName || 'Sistema'}</p>
-                                            <p><span className="font-semibold">Origem:</span> {selectedOrder.source === 'Online' ? '🌐 Catálogo Online' : '📝 Manual'}</p>
-                                            <p><span className="font-semibold">Data/Hora:</span> {format(parseISO(selectedOrder.createdAt || selectedOrder.date), "dd/MM/yyyy 'às' HH:mm")}</p>
-                                            <p><span className="font-semibold">IP:</span> {selectedOrder.createdIp || '-'}</p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-
-                                <Card>
-                                    <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                                        <MessageSquare className="w-8 h-8 text-primary" />
-                                        <CardTitle className="text-lg">Observações do Pedido</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="flex gap-2">
-                                            <Textarea
-                                                placeholder="Nenhuma observação registrada. Adicione uma aqui..."
-                                                value={observationsInput}
-                                                onChange={(e) => setObservationsInput(e.target.value)}
-                                                rows={2}
-                                            />
-                                            <Button size="sm" variant="outline" onClick={handleUpdateObservations} className="self-end">
-                                                <Save className="mr-2 h-4 w-4" /> Salvar
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-
-                                <Card>
-                                    <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                                        <CreditCard className="w-8 h-8 text-primary" />
-                                        <CardTitle className="text-lg">Faturamento e Status</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-6">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-                                            <div>
-                                                <label className="text-sm font-medium">Status do Pedido</label>
-                                                <Select value={selectedOrder.status} onValueChange={(status) => handleUpdateOrderStatus(status as Order['status'])}>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Alterar status" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="Processando">Processando</SelectItem>
-                                                        <SelectItem value="Enviado">Enviado</SelectItem>
-                                                        <SelectItem value="Entregue">Entregue</SelectItem>
-                                                        <SelectItem value="Cancelado">Cancelado</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <Badge variant={getStatusVariant(selectedOrder.status)} className="h-10 text-sm w-fit">{selectedOrder.status}</Badge>
-                                        </div>
-                                        <Separator />
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-                                            <div>
-                                                <label className="text-sm font-medium">Desconto (R$)</label>
-                                                <div className="flex gap-2">
-                                                    <Input
-                                                        inputMode="decimal"
-                                                        value={formatBRL(discountInput)}
-                                                        onChange={(e) => {
-                                                            const rawValue = e.target.value.replace(/\D/g, '');
-                                                            setDiscountInput(Number(rawValue) / 100);
-                                                        }}
-                                                        className="h-9"
-                                                    />
-                                                    <Button size="sm" variant="outline" onClick={handleUpdateDiscount}>
-                                                        <Save className="mr-2 h-4 w-4" /> Aplicar
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="text-sm font-medium">Entrada</label>
-                                                {(selectedOrder.downPayment || 0) > 0 ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-muted px-3 py-2 text-sm">
-                                                            <span>{formatCurrency(selectedOrder.downPayment || 0)}</span>
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={handleResetDownPayment}>
-                                                                <Undo2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex gap-2">
-                                                        <Input
-                                                            inputMode="decimal"
-                                                            value={formatBRL(downPaymentInput)}
-                                                            onChange={(e) => {
-                                                                const rawValue = e.target.value.replace(/\D/g, '');
-                                                                setDownPaymentInput(Number(rawValue) / 100);
-                                                            }}
-                                                            className="h-9"
-                                                        />
-                                                        <Button size="sm" variant="outline" onClick={handleAddDownPayment}>
-                                                            <Save className="mr-2 h-4 w-4" /> Registrar
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div>
-                                                <label className="text-sm font-medium">Forma de Pagamento</label>
-                                                <Select value={selectedOrder.paymentMethod} onValueChange={(value) => handleUpdatePaymentMethod(value as PaymentMethod)}>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Alterar forma de pagamento" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="Crediário">Crediário</SelectItem>
-                                                        <SelectItem value="Pix">Pix</SelectItem>
-                                                        <SelectItem value="Dinheiro">Dinheiro</SelectItem>
-                                                        <SelectItem value="Cartão Crédito">Cartão Crédito</SelectItem>
-                                                        <SelectItem value="Cartão Débito">Cartão Débito</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            {selectedOrder.paymentMethod === 'Crediário' && (
-                                                <div>
-                                                    <label className="text-sm font-medium">Parcelas (Max: {maxAllowedInstallmentsForSelectedOrder})</label>
-                                                    <div className="flex gap-2">
-                                                        <Input
-                                                            type="number"
-                                                            value={installmentsInput}
-                                                            onChange={(e) => setInstallmentsInput(Number(e.target.value))}
-                                                            min="1" max={maxAllowedInstallmentsForSelectedOrder}
-                                                            className="w-24"
-                                                            onKeyDown={(e) => e.key === 'Enter' && handleUpdateInstallments()}
-                                                        />
-                                                        <Button size="sm" onClick={handleUpdateInstallments}>
-                                                            <Save className="mr-2 h-4 w-4" /> Salvar
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-
-                                {selectedOrder.paymentMethod === 'Crediário' && (
-                                    <Card>
-                                        <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                                            <FileText className="w-8 h-8 text-primary" />
-                                            <CardTitle className="text-lg">Carnê de Pagamento</CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="overflow-x-auto">
-                                            <Table>
-                                                <TableBody>
-                                                    {(selectedOrder.installmentDetails || []).map((inst) => {
-                                                        const uniqueKey = `${selectedOrder.id}-${inst.installmentNumber}`;
-                                                        const isExpanded = expandedHistory === uniqueKey;
-                                                        const remainingAmount = inst.amount - (inst.paidAmount || 0);
-                                                        const isOverdue = inst.status === 'Pendente' && new Date(inst.dueDate) < new Date();
-                                                        const isAmountEdited = editedInstallmentValues[inst.installmentNumber] !== undefined;
-
-                                                        let statusText: string = inst.status;
-                                                        if (inst.status === 'Pendente' && (inst.paidAmount || 0) > 0) {
-                                                            statusText = `Parcial (${formatCurrency(remainingAmount)} pendente)`;
-                                                        } else if (isOverdue) {
-                                                            statusText = 'Atrasado';
-                                                        }
-                                                        const statusVariant = inst.status === 'Pago' ? 'default' : isOverdue ? 'destructive' : 'secondary';
-
-                                                        return (
-                                                            <React.Fragment key={uniqueKey}>
-                                                                <TableRow>
-                                                                    <TableCell className="font-medium">{inst.installmentNumber}/{selectedOrder.installments}</TableCell>
-                                                                    <TableCell>
-                                                                        <Popover open={openDueDatePopover === uniqueKey} onOpenChange={(isOpen) => setOpenDueDatePopover(isOpen ? uniqueKey : null)}>
-                                                                            <PopoverTrigger asChild>
-                                                                                <Button variant={"outline"} className="w-auto px-3 justify-start text-left font-normal text-xs" disabled={inst.status === 'Pago'}>
-                                                                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                                                                    Venc: {format(new Date(inst.dueDate), 'dd/MM/yyyy')}
-                                                                                </Button>
-                                                                            </PopoverTrigger>
-                                                                            <PopoverContent className="w-auto p-0">
-                                                                                <Calendar
-                                                                                    locale={ptBR}
-                                                                                    mode="single"
-                                                                                    selected={new Date(inst.dueDate)}
-                                                                                    onSelect={(date) => handleDueDateChange(selectedOrder.id, inst.installmentNumber, date)}
-                                                                                    defaultMonth={new Date(inst.dueDate)}
-                                                                                />
-                                                                            </PopoverContent>
-                                                                        </Popover>
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        {canEditInstallment ? (
-                                                                            <div className="flex items-center gap-2">
-                                                                                <Input
-                                                                                    type="text"
-                                                                                    value={isAmountEdited ? editedInstallmentValues[inst.installmentNumber] : formatBRL(inst.amount)}
-                                                                                    onChange={(e) => handleInstallmentValueChange(inst.installmentNumber, e.target.value)}
-                                                                                    className="w-28 h-9 text-right"
-                                                                                    disabled={inst.status === 'Pago'}
-                                                                                />
-                                                                                {isAmountEdited && (
-                                                                                    <Button size="icon" variant="outline" className="h-9 w-9" onClick={() => handleSaveInstallmentValue(inst.installmentNumber)}>
-                                                                                        <Save className="h-4 w-4" />
-                                                                                    </Button>
-                                                                                )}
-                                                                            </div>
-                                                                        ) : (
-                                                                            formatCurrency(inst.amount)
-                                                                        )}
-                                                                    </TableCell>
-                                                                    <TableCell><Badge variant={statusVariant}>{statusText}</Badge></TableCell>
-                                                                    <TableCell className="text-right">
-                                                                        <div className="flex items-center justify-end gap-1">
-                                                                            {user && (
-                                                                                <>
-                                                                                    {(inst.payments && inst.payments.length > 0) && (
-                                                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpandedHistory(isExpanded ? null : uniqueKey)}>
-                                                                                            <History className="h-4 w-4" />
-                                                                                        </Button>
-                                                                                    )}
-                                                                                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleOpenPaymentDialog(inst)} disabled={inst.status === 'Pago'}>
-                                                                                        <CheckCircle className="h-4 w-4 text-green-600" />
-                                                                                    </Button>
-                                                                                </>
-                                                                            )}
-                                                                            <Button variant="outline" size="icon" className="h-8 w-8" asChild>
-                                                                                <Link href={`/carnet/${selectedOrder.id}/${inst.installmentNumber}`} target="_blank" rel="noopener noreferrer">
-                                                                                    <Printer className="h-4 w-4" />
-                                                                                </Link>
-                                                                            </Button>
-                                                                        </div>
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                                {isExpanded && (
-                                                                    <TableRow>
-                                                                        <TableCell colSpan={5} className="p-0 border-none">
-                                                                            <div className="p-3 bg-muted/30 border-t">
-                                                                                <h4 className="font-semibold text-sm mb-2">Histórico de Pagamentos da Parcela</h4>
-                                                                                {(inst.payments && inst.payments.length > 0) ? (
-                                                                                    <Table>
-                                                                                        <TableHeader>
-                                                                                            <TableRow>
-                                                                                                <TableHead>Data</TableHead>
-                                                                                                <TableHead>Método</TableHead>
-                                                                                                <TableHead>Valor</TableHead>
-                                                                                                <TableHead className='text-right'>Ação</TableHead>
-                                                                                            </TableRow>
-                                                                                        </TableHeader>
-                                                                                        <TableBody>
-                                                                                            {inst.payments.map((p, index) => (
-                                                                                                <TableRow key={`${p.id}-${index}`}>
-                                                                                                    <TableCell>{format(new Date(p.date), "dd/MM/yyyy 'às' HH:mm")}</TableCell>
-                                                                                                    <TableCell>{p.method}</TableCell>
-                                                                                                    <TableCell>{formatCurrency(p.amount)}</TableCell>
-                                                                                                    <TableCell className="text-right">
-                                                                                                        <AlertDialog>
-                                                                                                            <AlertDialogTrigger asChild>
-                                                                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive"><Undo2 className="h-4 w-4" /></Button>
-                                                                                                            </AlertDialogTrigger>
-                                                                                                            <AlertDialogContent>
-                                                                                                                <AlertDialogHeader>
-                                                                                                                    <AlertDialogTitle>Confirmar Estorno?</AlertDialogTitle>
-                                                                                                                    <CardDescription>Esta ação irá reverter o pagamento de {formatCurrency(p.amount)} feito em {format(new Date(p.date), 'dd/MM/yy')}. Isso não pode ser desfeito.</CardDescription>
-                                                                                                                </AlertDialogHeader>
-                                                                                                                <AlertDialogFooter>
-                                                                                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                                                                                    <AlertDialogAction onClick={() => reversePayment(selectedOrder.id, inst.installmentNumber, p.id, logAction, user)}>Sim, Estornar</AlertDialogAction>
-                                                                                                                </AlertDialogFooter>
-                                                                                                            </AlertDialogContent>
-                                                                                                        </AlertDialog>
-                                                                                                    </TableCell>
-                                                                                                </TableRow>
-                                                                                            ))}
-                                                                                        </TableBody>
-                                                                                    </Table>
-                                                                                ) : <p className='text-xs text-muted-foreground'>Nenhum pagamento registrado para esta parcela.</p>}
-                                                                            </div>
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                )}
-                                                            </React.Fragment>
-                                                        )
-                                                    })}
-                                                </TableBody>
-                                            </Table>
-                                        </CardContent>
-                                    </Card>
-                                )}
-                            </div>
-                            <DialogFooter className="pt-4 border-t">
-                                {selectedOrder.paymentMethod === 'Crediário' && (
-                                    <Button variant="secondary" asChild>
-                                        <Link href={`/carnet/${selectedOrder.id}`} target="_blank" rel="noopener noreferrer">
-                                            <Printer className="mr-2 h-4 w-4" />
-                                            Ver Carnê Completo
-                                        </Link>
-                                    </Button>
-                                )}
-                                <Button variant="outline" onClick={() => setIsDetailModalOpen(false)}>Fechar</Button>
-                            </DialogFooter>
-                        </>
-                    )}
-                </DialogContent>
-            </Dialog>
+            <OrderEditDialog
+                open={isDetailModalOpen}
+                onOpenChange={setIsDetailModalOpen}
+                order={selectedOrder}
+            />
 
             {installmentToPay && selectedOrder && (
                 <PaymentDialog
