@@ -1939,7 +1939,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
           toast({
             title: "Atualização Parcial",
             description: "Os dados foram salvos, mas as funções 'Bloquear' e 'Classificação' falharam pois o banco de dados desatualizado. Execute o script de migração.",
-            variant: "warning"
+            variant: "destructive"
           });
 
           // Apply optimistic update for basic fields only
