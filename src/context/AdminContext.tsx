@@ -1916,10 +1916,50 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       logAction('Atualização de Cliente', `Dados do cliente ${customerDataForWrites.name} (CPF: ${newCpf}) foram atualizados.`, user);
       toast({ title: "Cliente Atualizado!", description: `Os dados de ${customerDataForWrites.name} foram salvos.` });
     } catch (e: any) {
-      console.error("Erro ao atualizar cliente:", e);
-      // Capture detailed error
-      const errorMsg = e?.message || (typeof e === 'string' ? e : JSON.stringify(e));
-      toast({ title: 'Erro ao Salvar', description: `Detalhes: ${errorMsg}`, variant: 'destructive' });
+      console.error("Erro principal ao atualizar cliente:", e);
+
+      // Attempt Fallback Update (Removing new fields that might be missing in DB)
+      try {
+        if (!oldCpf || oldCpf === newCpf) { // Only for simple updates, not renames
+          console.log("Tentando atualização de fallback (sem campos novos)...");
+          const safeData = { ...customerDataForWrites };
+          delete safeData.blocked;
+          delete safeData.blockedReason;
+          delete safeData.rating;
+
+          const { error: fallbackError } = await supabase.from('customers').update({
+            ...safeData,
+            updated_at: new Date().toISOString()
+          }).eq('cpf', newCpf);
+
+          if (fallbackError) throw fallbackError;
+
+          // If fallback succeeds, it means the columns are indeed missing
+          logAction('Atualização de Cliente (Parcial)', `Dados do cliente ${customerDataForWrites.name} foram atualizados (parcialmente).`, user);
+          toast({
+            title: "Atualização Parcial",
+            description: "Os dados foram salvos, mas as funções 'Bloquear' e 'Classificação' falharam pois o banco de dados desatualizado. Execute o script de migração.",
+            variant: "warning"
+          });
+
+          // Apply optimistic update for basic fields only
+          setCustomers(prev => {
+            const index = prev.findIndex(c => c.cpf === oldCpf || c.id === oldCustomer.id);
+            if (index === -1) return prev;
+            const newCustomers = [...prev];
+            newCustomers[index] = { ...newCustomers[index], ...safeData };
+            return newCustomers;
+          });
+          return; // Exit successfully after fallback
+        }
+      } catch (fallbackErr) {
+        console.error("Erro no fallback:", fallbackErr);
+      }
+
+      // If fallback didn't run or failed, show original error
+      const errorMsg = e?.message || e?.details || e?.hint || (typeof e === 'string' ? e : JSON.stringify(e));
+      const errorCode = e?.code ? `(Código: ${e.code})` : '';
+      toast({ title: 'Erro ao Salvar', description: `Detalhes: ${errorMsg} ${errorCode}`, variant: 'destructive' });
     }
   }, [orders, toast]);
 

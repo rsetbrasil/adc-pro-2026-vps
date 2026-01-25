@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Trash, Plus, FileSpreadsheet, UserPlus, Pencil, MoreVertical, Trash2, KeyRound, Search, X, History, User as UserIcon, MapPin, Phone, FileSignature, ShieldAlert, Lock, Unlock, Users, Mail, CreditCard, Printer, Upload, FileText, CheckCircle, Undo2, CalendarIcon, ClipboardPaste, MessageSquarePlus, Clock, UserSquare, Import } from 'lucide-react';
+import { Trash, Plus, FileSpreadsheet, UserPlus, Pencil, MoreVertical, Trash2, KeyRound, Search, X, History, User as UserIcon, MapPin, Phone, FileSignature, ShieldAlert, Lock, Unlock, Users, Mail, CreditCard, Printer, Upload, FileText, CheckCircle, Undo2, CalendarIcon, ClipboardPaste, MessageSquarePlus, Clock, UserSquare, Import, Star } from 'lucide-react';
 import { BlockCustomerDialog } from '@/components/BlockCustomerDialog';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -882,10 +882,18 @@ Não esqueça de enviar o comprovante!`;
                             <div className="space-y-8">
                                 <div>
                                     <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                                        <h3 className="text-lg font-semibold flex items-center gap-2">
-                                            <UserIcon className="h-5 w-5 text-primary" />
-                                            Informações Pessoais
-                                        </h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-lg font-semibold flex items-center gap-2">
+                                                <UserIcon className="h-5 w-5 text-primary" />
+                                                Informações Pessoais
+                                            </h3>
+                                            {selectedCustomer.rating && selectedCustomer.rating > 0 && (
+                                                <div className="flex items-center ml-2 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-200">
+                                                    <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 mr-1" />
+                                                    <span className="text-xs font-bold text-yellow-700">{selectedCustomer.rating.toFixed(1)}</span>
+                                                </div>
+                                            )}
+                                        </div>
                                         <div className="flex gap-2">
                                             <Button variant="outline" size="sm" onClick={handleOpenEditDialog}>
                                                 <Pencil className="mr-2 h-4 w-4" />
@@ -1501,6 +1509,29 @@ Não esqueça de enviar o comprovante!`;
                             <Input id="password" name="password" type="text" onChange={handleInputChange} placeholder="Deixe em branco para não alterar" />
                         </div>
                         <div className="pt-4 border-t space-y-4">
+                            <div>
+                                <Label className="mb-2 block">Classificação do Cliente</Label>
+                                <div className="flex items-center gap-1">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <button
+                                            key={star}
+                                            type="button"
+                                            onClick={() => setEditedInfo(prev => ({ ...prev, rating: star }))}
+                                            className="focus:outline-none"
+                                        >
+                                            <Star
+                                                className={`h-6 w-6 ${(editedInfo.rating || 0) >= star
+                                                        ? 'text-yellow-500 fill-yellow-500'
+                                                        : 'text-gray-300'
+                                                    }`}
+                                            />
+                                        </button>
+                                    ))}
+                                    <span className="ml-2 text-sm text-muted-foreground">
+                                        {editedInfo.rating ? `${editedInfo.rating} estrelas` : 'Sem classificação'}
+                                    </span>
+                                </div>
+                            </div>
                             <div className="flex items-center justify-between">
                                 <div className="space-y-0.5">
                                     <Label className="text-base">Bloquear Cliente</Label>

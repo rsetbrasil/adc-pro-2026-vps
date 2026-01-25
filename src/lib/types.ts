@@ -88,6 +88,7 @@ export type CustomerInfo = {
   sellerName?: string;
   blocked?: boolean;
   blockedReason?: string;
+  rating?: number;
 };
 
 export type Payment = {
