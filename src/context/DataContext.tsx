@@ -101,11 +101,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             finished = true;
           } else {
             allProducts = [...allProducts, ...productsChunk];
-            if (productsChunk.length < 50) {
+            if (productsChunk.length < 1000) {
               finished = true;
             } else {
-              from += 50;
-              to += 50;
+              from += 1000;
+              to += 1000;
             }
           }
         }
