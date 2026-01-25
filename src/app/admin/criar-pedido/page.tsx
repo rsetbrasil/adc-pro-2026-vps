@@ -325,6 +325,16 @@ export default function CreateOrderPage() {
       return;
     }
 
+    if (customer.blocked) {
+      toast({
+        title: 'Cliente Bloqueado',
+        description: customer.blockedReason ? `Motivo: ${customer.blockedReason}` : 'Este cliente está bloqueado e não pode realizar novos pedidos.',
+        variant: 'destructive',
+        className: 'bg-red-600 text-white border-none'
+      });
+      return;
+    }
+
     const installmentValue = totalFinanced / values.installments;
 
     const installmentDetails = Array.from({ length: values.installments }, (_, i) => ({

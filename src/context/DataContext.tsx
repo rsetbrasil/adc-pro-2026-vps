@@ -82,18 +82,36 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const fetchData = async () => {
       // Fetch Products
       try {
-        const { data: productsData, error: productsError } = await supabase
-          .from('products')
-          .select('*')
-          .is('deleted_at', null)
-          .order('created_at', { ascending: true });
+        let allProducts: any[] = [];
+        let from = 0;
+        let to = 999;
+        let finished = false;
 
-        if (productsError) throw productsError;
+        while (!finished) {
+          const { data: productsChunk, error: productsError } = await supabase
+            .from('products')
+            .select('id, name, description, long_description, price, cost, category, subcategory, stock, min_stock, unit, original_price, on_sale, promotion_end_date, image_url, image_urls, max_installments, payment_condition, code, commission_type, commission_value, is_hidden, data_ai_hint, created_at, deleted_at')
+            .is('deleted_at', null)
+            .order('created_at', { ascending: true })
+            .range(from, to);
 
-        if (productsData) {
-          const mappedProducts = productsData.map(mapProductFromDB);
-          setProducts(mappedProducts);
+          if (productsError) throw productsError;
+
+          if (!productsChunk || productsChunk.length === 0) {
+            finished = true;
+          } else {
+            allProducts = [...allProducts, ...productsChunk];
+            if (productsChunk.length < 50) {
+              finished = true;
+            } else {
+              from += 50;
+              to += 50;
+            }
+          }
         }
+
+        const mappedProducts = allProducts.map(mapProductFromDB);
+        setProducts(mappedProducts);
       } catch (error) {
         console.error('Error fetching products from Supabase:', error instanceof Error ? error.message : JSON.stringify(error));
       } finally {

@@ -1904,11 +1904,22 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         if (error) throw error;
       }
 
+      // Optimistic Update
+      setCustomers(prev => {
+        const index = prev.findIndex(c => c.cpf === oldCpf || c.id === oldCustomer.id);
+        if (index === -1) return prev;
+        const newCustomers = [...prev];
+        newCustomers[index] = { ...newCustomers[index], ...customerDataForWrites };
+        return newCustomers;
+      });
+
       logAction('Atualização de Cliente', `Dados do cliente ${customerDataForWrites.name} (CPF: ${newCpf}) foram atualizados.`, user);
       toast({ title: "Cliente Atualizado!", description: `Os dados de ${customerDataForWrites.name} foram salvos.` });
-    } catch (e) {
+    } catch (e: any) {
       console.error("Erro ao atualizar cliente:", e);
-      toast({ title: 'Erro', description: 'Não foi possível atualizar o cliente.', variant: 'destructive' });
+      // Capture detailed error
+      const errorMsg = e?.message || (typeof e === 'string' ? e : JSON.stringify(e));
+      toast({ title: 'Erro ao Salvar', description: `Detalhes: ${errorMsg}`, variant: 'destructive' });
     }
   }, [orders, toast]);
 
@@ -2149,7 +2160,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
         const typedKey = key as keyof CustomerInfo;
         const colIndex = headerMap[key];
         if (colIndex !== undefined && colIndex < data.length) {
-          customer[typedKey] = data[colIndex]?.trim().replace(/["']/g, '') || '';
+          customer[typedKey] = (data[colIndex]?.trim().replace(/["']/g, '') || '') as any;
         }
       }
       return customer;

@@ -32,6 +32,8 @@ import { maskCpf, maskPhone, onlyDigits } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { allocateNextCustomerCode } from '@/lib/customer-code';
 import { supabase } from '@/lib/supabase';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { WhatsAppIcon } from './WhatsAppIcon';
 
 function isValidCPF(cpf: string) {
   if (typeof cpf !== 'string') return false;
@@ -128,6 +130,7 @@ export default function CheckoutForm() {
   const { toast } = useToast();
   const [isNewCustomer, setIsNewCustomer] = useState(true);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [blockedCustomer, setBlockedCustomer] = useState<CustomerInfo | null>(null);
 
   const form = useForm<z.infer<typeof checkoutSchema>>({
     resolver: zodResolver(checkoutSchema),
@@ -175,6 +178,12 @@ export default function CheckoutForm() {
           if (error) throw error;
 
           if (customerData) {
+            if (customerData.blocked) {
+              setBlockedCustomer(customerData as CustomerInfo);
+              form.setValue('cpf', ''); // Clear CPF to reset
+              return;
+            }
+
             // Sanitizar dados nulos para strings vazias para não quebrar o formulário
             const sanitizedData = {
               name: customerData.name || '',
@@ -674,6 +683,37 @@ export default function CheckoutForm() {
           </div>
         </form>
       </Form>
+
+      <Dialog open={!!blockedCustomer} onOpenChange={(open) => !open && setBlockedCustomer(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Entre em contato conosco
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Identificamos uma pendência em seu cadastro. Para prosseguir com sua compra, por favor, entre em contato com nosso atendimento pelo WhatsApp.
+            </DialogDescription>
+          </DialogHeader>
+          {blockedCustomer?.blockedReason && (
+            <div className="bg-muted p-3 round-md text-sm border-l-4 border-destructive">
+              <p className="font-semibold text-xs uppercase text-muted-foreground mb-1">Motivo</p>
+              <p>{blockedCustomer.blockedReason}</p>
+            </div>
+          )}
+          <DialogFooter className="sm:justify-start">
+            <Button asChild className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white">
+              <Link
+                href={`https://wa.me/${settings?.storePhone?.replace(/\D/g, '') || ''}?text=Olá, estou tentando fazer um pedido (CPF: ${blockedCustomer?.cpf}) mas meu cadastro aparece como bloqueado. Poderia me ajudar?`}
+                target="_blank"
+              >
+                <WhatsAppIcon className="mr-2 h-4 w-4" />
+                Falar com Vendedor no WhatsApp
+              </Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

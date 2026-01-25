@@ -12,7 +12,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { User as UserIcon, Mail, Phone, MapPin, Users, CreditCard, Printer, Upload, FileText, X, Pencil, CheckCircle, Undo2, CalendarIcon, ClipboardPaste, KeyRound, Search, MessageSquarePlus, Clock, UserSquare, History, Import, UserPlus, FileSignature, Trash2, Trash, MoreVertical } from 'lucide-react';
+import { Trash, Plus, FileSpreadsheet, UserPlus, Pencil, MoreVertical, Trash2, KeyRound, Search, X, History, User as UserIcon, MapPin, Phone, FileSignature, ShieldAlert, Lock, Unlock, Users, Mail, CreditCard, Printer, Upload, FileText, CheckCircle, Undo2, CalendarIcon, ClipboardPaste, MessageSquarePlus, Clock, UserSquare, Import } from 'lucide-react';
+import { BlockCustomerDialog } from '@/components/BlockCustomerDialog';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Input } from '@/components/ui/input';
@@ -35,6 +36,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 
 
 
@@ -111,6 +113,7 @@ function CustomersAdminPageInner() {
     const [isAddCustomerDialogOpen, setIsAddCustomerDialogOpen] = useState(false);
     const [newCustomerSellerId, setNewCustomerSellerId] = useState<string>('');
     const [editedInfo, setEditedInfo] = useState<Partial<CustomerInfo>>({});
+    const [isBlockDialogOpen, setIsBlockDialogOpen] = useState(false);
     const [openDueDatePopover, setOpenDueDatePopover] = useState<string | null>(null);
     const [dragActive, setDragActive] = useState(false);
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -168,15 +171,27 @@ function CustomersAdminPageInner() {
 
     const filteredCustomers = useMemo(() => {
         if (!customers) return [];
-        if (!searchQuery) return customers;
 
-        const lowercasedQuery = searchQuery.toLowerCase();
-        return customers.filter(customer =>
-            customer.name.toLowerCase().includes(lowercasedQuery) ||
-            (customer.cpf && customer.cpf.replace(/\D/g, '').includes(lowercasedQuery)) ||
-            (customer.code && customer.code.toLowerCase().includes(lowercasedQuery))
-        );
-    }, [customers, searchQuery]);
+        // Filter by tab first
+        let result = customers;
+        if (activeTab === 'blocked') {
+            result = result.filter(c => c.blocked);
+        } else {
+            result = result.filter(c => !c.blocked);
+        }
+
+        // Then filter by search query if it exists
+        if (searchQuery) {
+            const lowercasedQuery = searchQuery.toLowerCase();
+            result = result.filter(customer =>
+                customer.name.toLowerCase().includes(lowercasedQuery) ||
+                (customer.cpf && customer.cpf.replace(/\D/g, '').includes(lowercasedQuery)) ||
+                (customer.code && customer.code.toLowerCase().includes(lowercasedQuery))
+            );
+        }
+
+        return result;
+    }, [customers, searchQuery, activeTab]);
 
     const filteredDeletedCustomers = useMemo(() => {
         if (!deletedCustomers) return [];
@@ -599,6 +614,33 @@ Não esqueça de enviar o comprovante!`;
         handleAssignSeller(order, user);
     };
 
+    const handleBlockConfirm = async (reason: string) => {
+        console.log("handleBlockConfirm called. Customer:", selectedCustomer?.id, "Reason:", reason);
+        if (!selectedCustomer || !user) {
+            console.error("Missing customer or user");
+            return;
+        }
+
+        try {
+            await updateCustomer(selectedCustomer, { ...selectedCustomer, blocked: true, blockedReason: reason }, logAction, user);
+            console.log("Update success");
+            setIsBlockDialogOpen(false);
+
+            // Update local selected customer to reflect changes immediately (in addition to context update)
+            setSelectedCustomer(prev => prev ? ({ ...prev, blocked: true, blockedReason: reason }) : null);
+        } catch (error) {
+            console.error("Block error:", error);
+        }
+    };
+
+    const handleUnblockConfirm = async () => {
+        if (!selectedCustomer || !user) return;
+        await updateCustomer(selectedCustomer, { ...selectedCustomer, blocked: false, blockedReason: undefined }, logAction, user);
+
+        // Update local selected customer
+        setSelectedCustomer(prev => prev ? ({ ...prev, blocked: false, blockedReason: undefined }) : null);
+    };
+
     return (
         <>
             <div className="grid lg:grid-cols-3 gap-8 items-start">
@@ -680,9 +722,10 @@ Não esqueça de enviar o comprovante!`;
                     </CardHeader>
                     <CardContent>
                         <Tabs value={activeTab} onValueChange={setActiveTab}>
-                            <TabsList className={cn("grid w-full", canAccessTrash ? "grid-cols-2" : "grid-cols-1")}>
+                            <TabsList className="grid w-full grid-cols-3">
                                 <TabsTrigger value="active">Ativos</TabsTrigger>
-                                {canAccessTrash && <TabsTrigger value="deleted">Lixeira</TabsTrigger>}
+                                <TabsTrigger value="blocked">Bloqueados</TabsTrigger>
+                                <TabsTrigger value="trash">Lixeira</TabsTrigger>
                             </TabsList>
                             <div className="relative my-4">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -728,6 +771,39 @@ Não esqueça de enviar o comprovante!`;
                                         <Users className="mx-auto h-10 w-10" />
                                         <h3 className="mt-4 text-md font-semibold">Nenhum cliente ativo</h3>
                                         <p className="mt-1 text-xs">{searchQuery ? 'Tente uma busca diferente.' : 'Os clientes aparecerão aqui.'}</p>
+                                    </div>
+                                )}
+                            </TabsContent>
+                            <TabsContent value="blocked">
+                                {filteredCustomers.length > 0 ? (
+                                    <div className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-2">
+                                        {filteredCustomers.map((customer) => (
+                                            <Button
+                                                key={getCustomerKey(customer)}
+                                                variant={getCustomerKey(selectedCustomer) === getCustomerKey(customer) ? 'secondary' : 'ghost'}
+                                                className="justify-start w-full text-left h-auto py-2"
+                                                onClick={() => setSelectedCustomer(customer)}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="bg-red-100 rounded-full p-2">
+                                                        <UserIcon className="h-5 w-5 text-red-600" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-semibold">{customer.name}</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {customer.code ? `${customer.code.replace(/^CLI-/i, '')} • ` : ''}
+                                                            {customer.cpf}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </Button>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-10 text-muted-foreground border-2 border-dashed rounded-lg">
+                                        <ShieldAlert className="mx-auto h-10 w-10" />
+                                        <h3 className="mt-4 text-md font-semibold">Nenhum cliente bloqueado</h3>
+                                        <p className="mt-1 text-xs">{searchQuery ? 'Tente uma busca diferente.' : 'Clientes bloqueados aparecerão aqui.'}</p>
                                     </div>
                                 )}
                             </TabsContent>
@@ -815,6 +891,7 @@ Não esqueça de enviar o comprovante!`;
                                                 <Pencil className="mr-2 h-4 w-4" />
                                                 Editar
                                             </Button>
+
                                             {(user?.role === 'admin' || user?.role === 'gerente') && (
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
@@ -847,6 +924,27 @@ Não esqueça de enviar o comprovante!`;
                                                         </AlertDialog>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
+                                            )}
+                                            {selectedCustomer.blocked ? (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
+                                                    onClick={handleUnblockConfirm}
+                                                >
+                                                    <Unlock className="mr-2 h-4 w-4" />
+                                                    Desbloquear
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300"
+                                                    onClick={() => setIsBlockDialogOpen(true)}
+                                                >
+                                                    <Lock className="mr-2 h-4 w-4" />
+                                                    Bloquear
+                                                </Button>
                                             )}
                                         </div>
                                     </div>
@@ -892,6 +990,17 @@ Não esqueça de enviar o comprovante!`;
                                             <div className="flex items-center gap-2">
                                                 <UserIcon className="h-4 w-4 text-muted-foreground" />
                                                 <span className="font-semibold">Vendedor: <strong>{selectedCustomer.sellerName}</strong></span>
+                                            </div>
+                                        )}
+                                        {selectedCustomer.blocked && (
+                                            <div className="col-span-full mt-2 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md">
+                                                <div className="flex items-center gap-2 font-bold uppercase mb-1">
+                                                    <X className="h-4 w-4" />
+                                                    Cliente Bloqueado
+                                                </div>
+                                                {selectedCustomer.blockedReason && (
+                                                    <p className="text-sm">Motivo: {selectedCustomer.blockedReason}</p>
+                                                )}
                                             </div>
                                         )}
                                         <div className="flex items-start col-span-full gap-2 mt-2">
@@ -1391,6 +1500,30 @@ Não esqueça de enviar o comprovante!`;
                             <Label htmlFor="password" className="flex items-center gap-2 mb-2"><KeyRound className="h-4 w-4" /> Senha de Acesso</Label>
                             <Input id="password" name="password" type="text" onChange={handleInputChange} placeholder="Deixe em branco para não alterar" />
                         </div>
+                        <div className="pt-4 border-t space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <Label className="text-base">Bloquear Cliente</Label>
+                                    <p className="text-sm text-muted-foreground">Impedir que este cliente faça novos pedidos.</p>
+                                </div>
+                                <Switch
+                                    checked={editedInfo.blocked || false}
+                                    onCheckedChange={(checked) => setEditedInfo(prev => ({ ...prev, blocked: checked }))}
+                                />
+                            </div>
+                            {editedInfo.blocked && (
+                                <div>
+                                    <Label htmlFor="blockedReason">Motivo do Bloqueio</Label>
+                                    <Textarea
+                                        id="blockedReason"
+                                        name="blockedReason"
+                                        value={editedInfo.blockedReason || ''}
+                                        onChange={handleInputChange}
+                                        placeholder="Descreva o motivo pelo qual este cliente está bloqueado..."
+                                    />
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
@@ -1460,6 +1593,14 @@ Não esqueça de enviar o comprovante!`;
                     onSubmit={handlePaymentSubmit}
                 />
             )}
+            {/* Dialog de Bloqueio Rápido */}
+            <BlockCustomerDialog
+                open={isBlockDialogOpen}
+                onOpenChange={setIsBlockDialogOpen}
+                onConfirm={handleBlockConfirm}
+                customerName={selectedCustomer?.name}
+            />
+
             <OrderEditDialog
                 open={isOrderEditDialogOpen}
                 onOpenChange={setIsOrderEditDialogOpen}

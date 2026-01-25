@@ -86,6 +86,8 @@ export type CustomerInfo = {
   observations?: string;
   sellerId?: string;
   sellerName?: string;
+  blocked?: boolean;
+  blockedReason?: string;
 };
 
 export type Payment = {
