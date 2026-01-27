@@ -1132,7 +1132,13 @@ Não esqueça de enviar o comprovante!`;
                                                                                                             </Button>
                                                                                                         </PopoverTrigger>
                                                                                                         <PopoverContent className="w-auto p-0">
-                                                                                                            <Calendar locale={ptBR} mode="single" selected={new Date(inst.dueDate)} onSelect={(date) => handleDueDateChange(order.id, inst.installmentNumber, date)} />
+                                                                                                            <Calendar
+                                                                                                                locale={ptBR}
+                                                                                                                mode="single"
+                                                                                                                selected={new Date(inst.dueDate)}
+                                                                                                                defaultMonth={new Date(inst.dueDate)}
+                                                                                                                onSelect={(date) => handleDueDateChange(order.id, inst.installmentNumber, date)}
+                                                                                                            />
                                                                                                         </PopoverContent>
                                                                                                     </Popover>
                                                                                                     <div className="whitespace-nowrap"><span className="font-medium">Valor:</span> {formatCurrency(inst.amount)}</div>
@@ -1521,8 +1527,8 @@ Não esqueça de enviar o comprovante!`;
                                         >
                                             <Star
                                                 className={`h-6 w-6 ${(editedInfo.rating || 0) >= star
-                                                        ? 'text-yellow-500 fill-yellow-500'
-                                                        : 'text-gray-300'
+                                                    ? 'text-yellow-500 fill-yellow-500'
+                                                    : 'text-gray-300'
                                                     }`}
                                             />
                                         </button>

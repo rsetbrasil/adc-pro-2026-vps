@@ -437,8 +437,23 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
       let code = customerData.code || '';
       if (!code) {
-        const { count } = await supabase.from('customers').select('*', { count: 'exact', head: true });
-        code = formatCustomerCode((count || 0) + 1);
+        // Find the highest existing code to ensure uniqueness
+        const { data: maxCodeUsers, error: maxCodeError } = await supabase
+          .from('customers')
+          .select('code')
+          .order('code', { ascending: false })
+          .limit(1);
+
+        let nextCodeNumber = 1;
+        if (!maxCodeError && maxCodeUsers && maxCodeUsers.length > 0) {
+          const lastCode = maxCodeUsers[0].code;
+          const lastCodeNum = parseInt(lastCode, 10);
+          if (!isNaN(lastCodeNum)) {
+            nextCodeNumber = lastCodeNum + 1;
+          }
+        }
+
+        code = formatCustomerCode(nextCodeNumber);
       }
 
       const customerId = (customerData as any).id || `CUST-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
@@ -525,7 +540,10 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       if (!ordersByCustomer[customerKey]) {
         ordersByCustomer[customerKey] = [];
       }
-      ordersByCustomer[customerKey].push(order);
+      // Check for duplicates to avoid React key errors
+      if (!ordersByCustomer[customerKey].some(o => o.id === order.id)) {
+        ordersByCustomer[customerKey].push(order);
+      }
     });
     for (const key in ordersByCustomer) {
       ordersByCustomer[key].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
