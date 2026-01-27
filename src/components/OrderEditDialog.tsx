@@ -105,6 +105,7 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
     const [datePopoverOpen, setDatePopoverOpen] = useState<number | null>(null);
 
     const isManagerOrAdmin = user?.role === 'admin' || user?.role === 'gerente';
+    const canEditInstallments = isManagerOrAdmin || user?.role === 'vendedor' || user?.role === 'vendedor_externo';
 
     useEffect(() => {
         if (order) {
@@ -487,10 +488,10 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                                                         <PopoverTrigger asChild>
                                                             <Button variant="ghost" className="h-8 w-full justify-start text-left font-normal p-0 hover:bg-transparent">
                                                                 {format(parseISO(installment.dueDate), 'dd/MM/yyyy')}
-                                                                {installment.status === 'Pendente' && isManagerOrAdmin && <Pencil className="ml-2 h-3 w-3 opacity-50" />}
+                                                                {installment.status === 'Pendente' && canEditInstallments && <Pencil className="ml-2 h-3 w-3 opacity-50" />}
                                                             </Button>
                                                         </PopoverTrigger>
-                                                        {installment.status === 'Pendente' && isManagerOrAdmin && (
+                                                        {installment.status === 'Pendente' && canEditInstallments && (
                                                             <PopoverContent className="w-auto p-0">
                                                                 <Calendar
                                                                     mode="single"
@@ -529,7 +530,7 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                                                     ) : (
                                                         <div className="flex items-center gap-2 group">
                                                             {formatCurrency(installment.amount)}
-                                                            {installment.status === 'Pendente' && isManagerOrAdmin && (
+                                                            {installment.status === 'Pendente' && canEditInstallments && (
                                                                 <Button
                                                                     variant="ghost"
                                                                     size="icon"
