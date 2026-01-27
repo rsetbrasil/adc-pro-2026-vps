@@ -1,4 +1,5 @@
 
+require('dotenv').config({ path: '.env.local' });
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 const path = require('path');
@@ -23,14 +24,34 @@ async function fixDuplicates() {
     console.log('Fetching customers...');
 
     // 1. Fetch all customers
-    const { data: customers, error } = await supabase
-        .from('customers')
-        .select('id, name, code, created_at');
+    // 1. Fetch all customers with pagination
+    let allCustomers = [];
+    let from = 0;
+    let to = 999;
+    let more = true;
 
-    if (error) {
-        console.error('Error fetching customers:', error);
-        return;
+    while (more) {
+        const { data: chunk, error } = await supabase
+            .from('customers')
+            .select('id, name, code, created_at')
+            .range(from, to);
+
+        if (error) {
+            console.error('Error fetching customers:', error);
+            return;
+        }
+
+        if (chunk.length > 0) {
+            allCustomers = allCustomers.concat(chunk);
+            from += 1000;
+            to += 1000;
+        } else {
+            more = false;
+        }
     }
+
+    const customers = allCustomers;
+    console.log(`Fetched ${customers.length} total customers.`);
 
     if (!customers || customers.length === 0) {
         console.log('No customers found.');
