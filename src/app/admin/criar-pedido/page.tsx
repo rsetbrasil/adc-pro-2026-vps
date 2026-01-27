@@ -222,6 +222,9 @@ export default function CreateOrderPage() {
     if (!currentSellerId || !sellers.some(s => s.id === currentSellerId)) {
       form.setValue('sellerId', sellers[0].id, { shouldValidate: true });
     }
+
+    // Force default firstDueDate to next month to avoid "today" default issue
+    form.setValue('firstDueDate', addMonths(new Date(), 1));
   }, [form, sellers]);
 
   const handleAddItem = (product: Product | CartItem) => {

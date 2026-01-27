@@ -23,10 +23,23 @@ import {
     Save,
     Undo2,
     FileText,
+    CalendarIcon,
+    Pencil,
+    X,
+    Check,
+    Eye,
+    AlertCircle,
     Calculator,
-    Percent,
-    Eye
+    Percent
 } from 'lucide-react';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import type { Order, Installment, PaymentMethod } from '@/lib/types';
 import { useAdmin } from '@/context/AdminContext';
 import { useAuth } from '@/context/AuthContext';
@@ -34,6 +47,8 @@ import { useAudit } from '@/context/AuditContext';
 import { useData } from '@/context/DataContext';
 import { format, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
@@ -74,7 +89,7 @@ const getStatusVariant = (status: Order['status']): 'secondary' | 'default' | 'o
 };
 
 export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogProps) {
-    const { updateOrderStatus, updateOrderDetails } = useAdmin();
+    const { updateOrderStatus, updateOrderDetails, updateInstallmentDueDate, updateInstallmentAmount } = useAdmin();
     const { user } = useAuth();
     const { toast } = useToast();
     const { products } = useData();
@@ -86,6 +101,8 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
     const [observationsInput, setObservationsInput] = useState('');
     const [discountInput, setDiscountInput] = useState(0);
     const [downPaymentInput, setDownPaymentInput] = useState(0);
+    const [editingInstallment, setEditingInstallment] = useState<{ number: number, value: string } | null>(null);
+    const [datePopoverOpen, setDatePopoverOpen] = useState<number | null>(null);
 
     const isManagerOrAdmin = user?.role === 'admin' || user?.role === 'gerente';
 
@@ -182,6 +199,25 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
         if (!order || !user) return;
         updateOrderDetails(order.id, { observations: observationsInput }, auditLogAction, user);
         toast({ title: 'Observações Atualizadas', description: 'As observações foram salvas com sucesso.' });
+    };
+
+    const handleSaveInstallmentAmount = async () => {
+        if (!order || !editingInstallment || !user) return;
+        const newAmount = parseFloat(editingInstallment.value.replace(/\./g, '').replace(',', '.'));
+
+        if (isNaN(newAmount) || newAmount < 0) {
+            toast({ title: 'Valor Inválido', variant: 'destructive' });
+            return;
+        }
+
+        await updateInstallmentAmount(order.id, editingInstallment.number, newAmount, auditLogAction, user);
+        setEditingInstallment(null);
+    };
+
+    const handleDateSelect = async (installmentNumber: number, date: Date | undefined) => {
+        if (!order || !date || !user) return;
+        await updateInstallmentDueDate(order.id, installmentNumber, date, auditLogAction, user);
+        setDatePopoverOpen(null);
     };
 
     if (!order) return null;
@@ -424,6 +460,100 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                             </div>
                         </CardContent>
                     </Card>
+
+
+                    {order.paymentMethod === 'Crediário' && order.installmentDetails && order.installmentDetails.length > 0 && (
+                        <Card className="mt-6">
+                            <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
+                                <FileText className="w-8 h-8 text-primary" />
+                                <CardTitle className="text-lg">Detalhamento das Parcelas</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Parcela</TableHead>
+                                            <TableHead>Vencimento</TableHead>
+                                            <TableHead>Valor</TableHead>
+                                            <TableHead>Status</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {order.installmentDetails.map((installment) => (
+                                            <TableRow key={installment.installmentNumber}>
+                                                <TableCell>{installment.installmentNumber}ª Parcela</TableCell>
+                                                <TableCell>
+                                                    <Popover open={datePopoverOpen === installment.installmentNumber} onOpenChange={(open) => setDatePopoverOpen(open ? installment.installmentNumber : null)}>
+                                                        <PopoverTrigger asChild>
+                                                            <Button variant="ghost" className="h-8 w-full justify-start text-left font-normal p-0 hover:bg-transparent">
+                                                                {format(parseISO(installment.dueDate), 'dd/MM/yyyy')}
+                                                                {installment.status === 'Pendente' && isManagerOrAdmin && <Pencil className="ml-2 h-3 w-3 opacity-50" />}
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        {installment.status === 'Pendente' && isManagerOrAdmin && (
+                                                            <PopoverContent className="w-auto p-0">
+                                                                <Calendar
+                                                                    mode="single"
+                                                                    selected={parseISO(installment.dueDate)}
+                                                                    defaultMonth={parseISO(installment.dueDate)}
+                                                                    onSelect={(date) => handleDateSelect(installment.installmentNumber, date)}
+                                                                    initialFocus
+                                                                />
+                                                            </PopoverContent>
+                                                        )}
+                                                    </Popover>
+                                                </TableCell>
+                                                <TableCell>
+                                                    {editingInstallment?.number === installment.installmentNumber ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <Input
+                                                                className="h-7 w-20 text-right p-1"
+                                                                value={editingInstallment.value}
+                                                                onChange={(e) => {
+                                                                    const rawValue = e.target.value.replace(/\D/g, '');
+                                                                    const value = (Number(rawValue) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                                                                    setEditingInstallment({ ...editingInstallment, value });
+                                                                }}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') handleSaveInstallmentAmount();
+                                                                    if (e.key === 'Escape') setEditingInstallment(null);
+                                                                }}
+                                                            />
+                                                            <Button size="icon" variant="ghost" className="h-6 w-6 text-green-600" onClick={handleSaveInstallmentAmount}>
+                                                                <Check className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => setEditingInstallment(null)}>
+                                                                <X className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2 group">
+                                                            {formatCurrency(installment.amount)}
+                                                            {installment.status === 'Pendente' && isManagerOrAdmin && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                    onClick={() => setEditingInstallment({ number: installment.installmentNumber, value: formatBRL(installment.amount) })}
+                                                                >
+                                                                    <Pencil className="h-3 w-3" />
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant={installment.status === 'Pago' ? 'default' : 'secondary'} className={cn(installment.status === 'Pago' && "bg-green-600 hover:bg-green-700")}>
+                                                        {installment.status}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
                 <DialogFooter className="pt-4 border-t">
                     {order.paymentMethod === 'Crediário' && (
@@ -437,6 +567,6 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
                 </DialogFooter>
             </DialogContent>
-        </Dialog>
+        </Dialog >
     );
 }
