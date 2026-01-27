@@ -757,10 +757,19 @@ Não esqueça de enviar o comprovante!`;
                                                     </div>
                                                     <div>
                                                         <p className="font-semibold">{customer.name}</p>
-                                                        <p className="text-xs text-muted-foreground">
-                                                            {customer.code ? `${customer.code.replace(/^CLI-/i, '')} • ` : ''}
-                                                            {customer.cpf}
-                                                        </p>
+                                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                            <span>
+                                                                {customer.code ? `${customer.code.replace(/^CLI-/i, '')} • ` : ''}
+                                                                {customer.cpf}
+                                                            </span>
+                                                            {(() => {
+                                                                const rating = customer.rating;
+                                                                if (rating === 1) return <Badge variant="destructive" className="text-[10px] h-4 px-1 py-0">RUIM</Badge>;
+                                                                if (rating === 2) return <Badge variant="secondary" className="bg-yellow-500 text-white hover:bg-yellow-600 border-none text-[10px] h-4 px-1 py-0">REGULAR</Badge>;
+                                                                if (rating === 3) return <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-[10px] h-4 px-1 py-0">EXCELENTE</Badge>;
+                                                                return null;
+                                                            })()}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </Button>
@@ -790,10 +799,19 @@ Não esqueça de enviar o comprovante!`;
                                                     </div>
                                                     <div>
                                                         <p className="font-semibold">{customer.name}</p>
-                                                        <p className="text-xs text-muted-foreground">
-                                                            {customer.code ? `${customer.code.replace(/^CLI-/i, '')} • ` : ''}
-                                                            {customer.cpf}
-                                                        </p>
+                                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                            <span>
+                                                                {customer.code ? `${customer.code.replace(/^CLI-/i, '')} • ` : ''}
+                                                                {customer.cpf}
+                                                            </span>
+                                                            {(() => {
+                                                                const rating = customer.rating;
+                                                                if (rating === 1) return <Badge variant="destructive" className="text-[10px] h-4 px-1 py-0">RUIM</Badge>;
+                                                                if (rating === 2) return <Badge variant="secondary" className="bg-yellow-500 text-white hover:bg-yellow-600 border-none text-[10px] h-4 px-1 py-0">REGULAR</Badge>;
+                                                                if (rating === 3) return <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-[10px] h-4 px-1 py-0">EXCELENTE</Badge>;
+                                                                return null;
+                                                            })()}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </Button>
@@ -888,10 +906,13 @@ Não esqueça de enviar o comprovante!`;
                                                 Informações Pessoais
                                             </h3>
                                             {selectedCustomer.rating && selectedCustomer.rating > 0 && (
-                                                <div className="flex items-center ml-2 bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-200">
-                                                    <Star className="h-3 w-3 text-yellow-500 fill-yellow-500 mr-1" />
-                                                    <span className="text-xs font-bold text-yellow-700">{selectedCustomer.rating.toFixed(1)}</span>
-                                                </div>
+                                                (() => {
+                                                    const rating = selectedCustomer.rating;
+                                                    if (rating === 1) return <Badge variant="destructive" className="ml-2 text-[10px] h-5 px-1 py-0">RUIM</Badge>;
+                                                    if (rating === 2) return <Badge variant="secondary" className="ml-2 bg-yellow-500 text-white hover:bg-yellow-600 border-none text-[10px] h-5 px-1 py-0">REGULAR</Badge>;
+                                                    if (rating === 3) return <Badge variant="default" className="ml-2 bg-green-600 hover:bg-green-700 text-[10px] h-5 px-1 py-0">EXCELENTE</Badge>;
+                                                    return null;
+                                                })()
                                             )}
                                         </div>
                                         <div className="flex gap-2">
@@ -1517,25 +1538,43 @@ Não esqueça de enviar o comprovante!`;
                         <div className="pt-4 border-t space-y-4">
                             <div>
                                 <Label className="mb-2 block">Classificação do Cliente</Label>
-                                <div className="flex items-center gap-1">
-                                    {[1, 2, 3, 4, 5].map((star) => (
-                                        <button
-                                            key={star}
-                                            type="button"
-                                            onClick={() => setEditedInfo(prev => ({ ...prev, rating: star }))}
-                                            className="focus:outline-none"
-                                        >
-                                            <Star
-                                                className={`h-6 w-6 ${(editedInfo.rating || 0) >= star
-                                                    ? 'text-yellow-500 fill-yellow-500'
-                                                    : 'text-gray-300'
-                                                    }`}
-                                            />
-                                        </button>
-                                    ))}
-                                    <span className="ml-2 text-sm text-muted-foreground">
-                                        {editedInfo.rating ? `${editedInfo.rating} estrelas` : 'Sem classificação'}
-                                    </span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditedInfo(prev => ({ ...prev, rating: 1 }))}
+                                        className={cn(
+                                            "px-4 py-2 rounded-md text-sm font-medium transition-colors border",
+                                            (editedInfo.rating === 1)
+                                                ? "bg-destructive text-destructive-foreground border-destructive"
+                                                : "bg-background hover:bg-muted text-muted-foreground border-input"
+                                        )}
+                                    >
+                                        RUIM
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditedInfo(prev => ({ ...prev, rating: 2 }))}
+                                        className={cn(
+                                            "px-4 py-2 rounded-md text-sm font-medium transition-colors border",
+                                            (editedInfo.rating === 2)
+                                                ? "bg-yellow-500 text-white border-yellow-500 hover:bg-yellow-600"
+                                                : "bg-background hover:bg-muted text-muted-foreground border-input"
+                                        )}
+                                    >
+                                        REGULAR
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditedInfo(prev => ({ ...prev, rating: 3 }))}
+                                        className={cn(
+                                            "px-4 py-2 rounded-md text-sm font-medium transition-colors border",
+                                            (editedInfo.rating === 3)
+                                                ? "bg-green-600 text-white border-green-600 hover:bg-green-700"
+                                                : "bg-background hover:bg-muted text-muted-foreground border-input"
+                                        )}
+                                    >
+                                        EXCELENTE
+                                    </button>
                                 </div>
                             </div>
                             <div className="flex items-center justify-between">

@@ -118,7 +118,7 @@ const months = [
 
 export default function OrdersAdminPage() {
     const { updateOrderStatus, recordInstallmentPayment, updateOrderDetails, updateInstallmentDueDate, deleteOrder, permanentlyDeleteOrder, reversePayment, emptyTrash, updateInstallmentAmount } = useAdmin();
-    const { orders } = useAdminData();
+    const { orders, customers } = useAdminData();
     const { products } = useData();
     const { user, users } = useAuth();
     const { settings } = useSettings();
@@ -645,6 +645,15 @@ Não esqueça de enviar o comprovante!`;
                                                                             </Button>
                                                                         </Link>
                                                                         <span className="truncate max-w-[150px]">{order.customer.name}</span>
+                                                                        {(() => {
+                                                                            const currentCustomer = customers?.find(c => c.id === order.customer.id);
+                                                                            const rating = currentCustomer?.rating || order.customer.rating;
+
+                                                                            if (rating === 1) return <Badge variant="destructive" className="ml-1 text-[10px] h-5 px-1 py-0">RUIM</Badge>;
+                                                                            if (rating === 2) return <Badge variant="secondary" className="ml-1 bg-yellow-500 text-white hover:bg-yellow-600 border-none text-[10px] h-5 px-1 py-0">REGULAR</Badge>;
+                                                                            if (rating === 3) return <Badge variant="default" className="ml-1 bg-green-600 hover:bg-green-700 text-[10px] h-5 px-1 py-0">EXCELENTE</Badge>;
+                                                                            return null;
+                                                                        })()}
                                                                     </div>
                                                                 </TableCell>
                                                                 <TableCell className="p-2 text-xs truncate max-w-[150px]">{order.items.map(item => item.name).join(', ')}</TableCell>
