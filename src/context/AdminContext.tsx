@@ -435,25 +435,11 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       // The implementation calls allocateNextCustomerCode(db) in original.
       // I will replace with a placeholder or Supabase count.
 
+
       let code = customerData.code || '';
       if (!code) {
-        // Find the highest existing code to ensure uniqueness
-        const { data: maxCodeUsers, error: maxCodeError } = await supabase
-          .from('customers')
-          .select('code')
-          .order('code', { ascending: false })
-          .limit(1);
-
-        let nextCodeNumber = 1;
-        if (!maxCodeError && maxCodeUsers && maxCodeUsers.length > 0) {
-          const lastCode = maxCodeUsers[0].code;
-          const lastCodeNum = parseInt(lastCode, 10);
-          if (!isNaN(lastCodeNum)) {
-            nextCodeNumber = lastCodeNum + 1;
-          }
-        }
-
-        code = formatCustomerCode(nextCodeNumber);
+        // Use the centralized atomic counter to ensure uniqueness and prevent race conditions
+        code = await allocateNextCustomerCode();
       }
 
       const customerId = (customerData as any).id || `CUST-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;

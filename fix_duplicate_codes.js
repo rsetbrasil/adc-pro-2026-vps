@@ -1,5 +1,4 @@
 
-require('dotenv').config({ path: '.env.local' });
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 const path = require('path');
@@ -16,114 +15,105 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-function formatCustomerCode(number) {
-    return number.toString().padStart(5, '0');
+function formatCustomerCode(value) {
+    return String(value).padStart(5, '0');
 }
 
 async function fixDuplicates() {
-    console.log('Fetching customers...');
+    console.log('Starting duplicate fix process...');
 
     // 1. Fetch all customers
-    // 1. Fetch all customers with pagination
-    let allCustomers = [];
-    let from = 0;
-    let to = 999;
-    let more = true;
+    const { data: customers, error } = await supabase
+        .from('customers')
+        .select('id, name, code')
+        .order('code', { ascending: true }); // Order by code to easily find max
 
-    while (more) {
-        const { data: chunk, error } = await supabase
-            .from('customers')
-            .select('id, name, code, created_at')
-            .range(from, to);
-
-        if (error) {
-            console.error('Error fetching customers:', error);
-            return;
-        }
-
-        if (chunk.length > 0) {
-            allCustomers = allCustomers.concat(chunk);
-            from += 1000;
-            to += 1000;
-        } else {
-            more = false;
-        }
+    if (error) {
+        console.error('Error fetching customers:', error);
+        return;
     }
-
-    const customers = allCustomers;
-    console.log(`Fetched ${customers.length} total customers.`);
 
     if (!customers || customers.length === 0) {
         console.log('No customers found.');
         return;
     }
 
-    // 2. Find max code to know where to start new codes
+    // 2. Find max code to initialize counter correctly later
     let maxCode = 0;
     customers.forEach(c => {
-        const codeNum = parseInt(c.code, 10);
-        if (!isNaN(codeNum) && codeNum > maxCode) {
-            maxCode = codeNum;
+        const num = parseInt(c.code, 10);
+        if (!isNaN(num) && num > maxCode) {
+            maxCode = num;
         }
     });
+    console.log(`Current highest code found: ${maxCode}`);
 
-    console.log(`Current Max Code is: ${maxCode}`);
-    let nextCode = maxCode + 1;
-
-    // 3. Identify Duplicates
+    // 3. Identify duplicates
     const codeMap = new Map();
-    const toUpdate = [];
+    const customersToUpdate = [];
+    let nextAvailableCode = maxCode + 1;
 
-    // Sort by created_at to keep the oldest one and update the newer ones
-    // If created_at is null/same, fallback to ID sorting logic or generic sort
-    customers.sort((a, b) => {
-        const dateA = new Date(a.created_at || 0).getTime();
-        const dateB = new Date(b.created_at || 0).getTime();
-        return dateA - dateB;
-    });
+    // First pass: populate map
+    for (const customer of customers) {
+        if (!customer.code) {
+            // Treat missing code as a duplicate to be assigned
+            customer.code = "MISSING";
+        }
 
-    customers.forEach(customer => {
-        const code = customer.code;
-        if (code) {
-            if (codeMap.has(code)) {
-                // Duplicate found! This 'customer' is newer than the one in the map
-                const newCode = formatCustomerCode(nextCode);
-                console.log(`Duplicate found for code ${code}. Renaming customer "${customer.name}" (${customer.id}) to new code ${newCode}`);
+        if (customer.code === "MISSING" || codeMap.has(customer.code)) {
+            // This is a duplicate or missing! Assign new code.
+            const newCode = formatCustomerCode(nextAvailableCode);
+            nextAvailableCode++;
 
-                toUpdate.push({
-                    id: customer.id,
-                    code: newCode
-                });
+            customersToUpdate.push({
+                ...customer,
+                newCode: newCode
+            });
+            console.log(`Will update ${customer.name} (Old: ${customer.code}) -> New: ${newCode}`);
+        } else {
+            codeMap.set(customer.code, customer);
+        }
+    }
 
-                nextCode++;
+    // 4. Update customers with new codes
+    if (customersToUpdate.length === 0) {
+        console.log('No duplicate codes found to fix.');
+    } else {
+        console.log(`Fixing ${customersToUpdate.length} customers...`);
+        for (const customer of customersToUpdate) {
+            const { error: updateError } = await supabase
+                .from('customers')
+                .update({ code: customer.newCode })
+                .eq('id', customer.id);
+
+            if (updateError) {
+                console.error(`Failed to update customer ${customer.id}:`, updateError);
             } else {
-                codeMap.set(code, customer);
+                console.log(`Updated ${customer.name} to code ${customer.newCode}`);
             }
         }
-    });
-
-    if (toUpdate.length === 0) {
-        console.log('No duplicates to fix.');
-        return;
     }
 
-    console.log(`Fixing ${toUpdate.length} duplicates...`);
+    // 5. Update the global config counter to the new max
+    // Use nextAvailableCode - 1 because nextAvailableCode is the NEXT one, so the last used is -1.
+    // However, if we didn't update anything, nextAvailableCode is maxCode + 1.
+    const finalLastNumber = nextAvailableCode - 1;
+    console.log(`Setting global customerCodeCounter to: ${finalLastNumber}`);
 
-    // 4. Update in batches
-    for (const update of toUpdate) {
-        const { error: updateError } = await supabase
-            .from('customers')
-            .update({ code: update.code })
-            .eq('id', update.id);
+    const { error: configError } = await supabase
+        .from('config')
+        .upsert({
+            key: 'customerCodeCounter',
+            value: { lastNumber: finalLastNumber }
+        });
 
-        if (updateError) {
-            console.error(`Failed to update customer ${update.id}:`, updateError);
-        } else {
-            console.log(`Updated customer ${update.id} to code ${update.code}`);
-        }
+    if (configError) {
+        console.error('Error updating config table:', configError);
+        // If config table doesn't exist, we might need to create it or different strategy, 
+        // but verify_file showed it checks 'config' table so it should exist.
+    } else {
+        console.log('Global counter updated successfully.');
     }
-
-    console.log('Done!');
 }
 
 fixDuplicates();
