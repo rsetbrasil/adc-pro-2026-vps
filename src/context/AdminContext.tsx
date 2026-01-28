@@ -1383,11 +1383,8 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       let code = existingCode;
 
       if (!code) {
-        // Replace allocateNextCustomerCode(db) with manual logic or Supabase
-        // Since we can't easily do transactional numbering without function, we assume basic generator or skip
-        // We can check formatCustomerCode
-        const { count } = await supabase.from('customers').select('*', { count: 'exact', head: true });
-        code = formatCustomerCode((count || 0) + 1);
+        // Use the centralized atomic counter to ensure uniqueness
+        code = await allocateNextCustomerCode();
       }
 
       orderToSave.customer = { ...orderToSave.customer, code };
@@ -2220,12 +2217,20 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
     const cpfToIdMap = new Map(customers.map(c => [normalizeCpf(c.cpf || ''), c.id]));
 
+    const newCustomersCount = customersToImport.filter(c => !cpfToIdMap.has(normalizeCpf(c.cpf!.replace(/\D/g, '')))).length;
+    let nextCode = 0;
+    if (newCustomersCount > 0) {
+      const { startNumber } = await reserveCustomerCodes(newCustomersCount);
+      nextCode = startNumber;
+    }
+
     for (const importedCustomer of customersToImport) {
       const cpf = importedCustomer.cpf!.replace(/\D/g, '');
       const existingId = cpfToIdMap.get(normalizeCpf(cpf));
       const customerId = existingId || `CUST-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
 
       const completeCustomerData: CustomerInfo = {
+        ...((!existingId && nextCode > 0) ? { code: formatCustomerCode(nextCode++) } : {}),
         id: customerId,
         cpf,
         name: importedCustomer.name || 'Nome não informado',
