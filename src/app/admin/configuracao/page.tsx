@@ -32,7 +32,7 @@ import { Switch } from '@/components/ui/switch';
 import { useData } from '@/context/DataContext';
 import { maskPhone, onlyDigits } from '@/lib/utils';
 import { isValidPixKey } from '@/lib/pix';
-import { supabase } from '@/lib/supabase';
+import { getAsaasSettingsAction, updateAsaasSettingsAction, getCustomerCodeCounterAction, updateCustomerCodeCounterAction } from '@/app/actions/settings';
 
 const settingsSchema = z.object({
   storeName: z.string().min(3, 'O nome da loja é obrigatório.'),
@@ -211,9 +211,9 @@ export default function ConfiguracaoPage() {
     setIsAsaasLoading(true);
     const fetchAsaasSettings = async () => {
       try {
-        const { data, error } = await supabase.from('config').select('value').eq('key', 'asaasSettings').maybeSingle();
-        if (error || !data?.value) return;
-        const asaasData = data.value as AsaasSettings;
+        const res = await getAsaasSettingsAction();
+        if (!res.success || !res.data) return;
+        const asaasData = res.data as AsaasSettings;
         asaasForm.reset({
           env: asaasData.env || 'production',
           accessToken: asaasData.accessToken || '',
@@ -255,8 +255,8 @@ export default function ConfiguracaoPage() {
   };
 
   const buildFullBackup = async () => {
-    const { data: counterData } = await supabase.from('config').select('value').eq('key', 'customerCodeCounter').maybeSingle();
-    const customerCodeCounter = counterData?.value || null;
+    const res = await getCustomerCodeCounterAction();
+    const customerCodeCounter = res.success ? res.data : null;
 
     return {
       version: 1,
@@ -299,7 +299,7 @@ export default function ConfiguracaoPage() {
       await updatePermissions(data.permissions);
     }
     if (data.customerCodeCounter) {
-      await supabase.from('config').upsert({ key: 'customerCodeCounter', value: data.customerCodeCounter });
+      await updateCustomerCodeCounterAction(data.customerCodeCounter);
     }
   };
 
@@ -412,8 +412,8 @@ export default function ConfiguracaoPage() {
       if ((values.accessToken || '').trim()) cleaned.accessToken = values.accessToken!.trim();
       if ((values.webhookToken || '').trim()) cleaned.webhookToken = values.webhookToken!.trim();
 
-      const { error } = await supabase.from('config').upsert({ key: 'asaasSettings', value: cleaned });
-      if (error) throw error;
+      const res = await updateAsaasSettingsAction(cleaned);
+      if (!res.success) throw new Error(res.error);
 
       logAction('Atualização de Configurações', 'Configurações do Asaas foram alteradas.', user);
       toast({ title: 'Configurações Salvas!', description: 'As configurações do Asaas foram atualizadas.' });

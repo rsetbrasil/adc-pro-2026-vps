@@ -14,20 +14,13 @@ import { generatePixPayload } from '@/lib/pix';
 import PixQRCode from '@/components/PixQRCode';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
-import { supabase } from '@/lib/supabase';
+import { getSettingsAction } from '@/app/actions/settings';
+import { getOrderForCarnetAction } from '@/app/actions/orders-fetcher';
 
-
-const formatCurrency = (value: number) => {
-    if (typeof value !== 'number') return 'R$ 0,00';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-};
-
-const initialSettings: StoreSettings = {
-    storeName: 'ADC Móveis', storeCity: '', storeAddress: '', pixKey: '', storePhone: ''
-};
+// ... (imports remain the same, except supabase)
 
 const CarnetContent = ({ order, settings, pixPayload, productCodeById }: { order: Order; settings: StoreSettings, pixPayload: string | null, productCodeById: Map<string, string> }) => {
-
+    // ... (component implementation remains exactly the same)
     const [expandedHistory, setExpandedHistory] = useState<number | null>(null);
     const subtotal = useMemo(() => order.items.reduce((acc, item) => acc + (item.price * item.quantity), 0), [order.items]);
     const totalPedido = useMemo(() => Math.max(0, subtotal - (order.discount || 0)), [subtotal, order.discount]);
@@ -350,51 +343,16 @@ export default function CarnetPage() {
         const fetchData = async () => {
             try {
                 const [orderRes, settingsRes] = await Promise.all([
-                    supabase.from('orders').select('*').eq('id', orderId).maybeSingle(),
-                    supabase.from('config').select('value').eq('key', 'storeSettings').maybeSingle()
+                    getOrderForCarnetAction(orderId),
+                    getSettingsAction()
                 ]);
 
-                if (orderRes.data) {
-                    let loadedOrder = orderRes.data as Order;
-                    const cpf = (loadedOrder.customer?.cpf || '').replace(/\D/g, '');
-                    const needsCustomerDetails =
-                        !loadedOrder.customer?.code ||
-                        !loadedOrder.customer?.phone ||
-                        !loadedOrder.customer?.address ||
-                        !loadedOrder.customer?.number ||
-                        !loadedOrder.customer?.neighborhood ||
-                        !loadedOrder.customer?.city ||
-                        !loadedOrder.customer?.state ||
-                        !loadedOrder.customer?.zip;
-
-                    if (cpf.length === 11 && needsCustomerDetails) {
-                        const { data: customerData } = await supabase.from('customers').select('*').eq('cpf', cpf).maybeSingle();
-                        if (customerData) {
-                            loadedOrder = {
-                                ...loadedOrder,
-                                customer: {
-                                    ...loadedOrder.customer,
-                                    code: loadedOrder.customer.code || customerData.code,
-                                    phone: loadedOrder.customer.phone || customerData.phone || '',
-                                    phone2: loadedOrder.customer.phone2 || (customerData as any).phone2,
-                                    phone3: loadedOrder.customer.phone3 || (customerData as any).phone3,
-                                    email: loadedOrder.customer.email || (customerData as any).email,
-                                    address: loadedOrder.customer.address || customerData.address || '',
-                                    number: loadedOrder.customer.number || customerData.number || '',
-                                    complement: loadedOrder.customer.complement || customerData.complement,
-                                    neighborhood: loadedOrder.customer.neighborhood || customerData.neighborhood || '',
-                                    city: loadedOrder.customer.city || customerData.city || '',
-                                    state: loadedOrder.customer.state || customerData.state || '',
-                                    zip: loadedOrder.customer.zip || customerData.zip || '',
-                                },
-                            };
-                        }
-                    }
-                    setOrder(loadedOrder);
+                if (orderRes.success && orderRes.data) {
+                    setOrder(orderRes.data as Order);
                 }
 
-                if (settingsRes.data?.value) {
-                    setSettings(settingsRes.data.value as StoreSettings);
+                if (settingsRes.success && settingsRes.data) {
+                    setSettings(settingsRes.data as StoreSettings);
                 }
             } catch (error) {
                 console.error("Error fetching data for carnet:", error);

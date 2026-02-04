@@ -18,7 +18,7 @@ import Image from 'next/image';
 import { generatePixPayload } from '@/lib/pix';
 import PixQRCode from '@/components/PixQRCode';
 import { format } from 'date-fns';
-import { supabase } from '@/lib/supabase';
+import { getOrderByIdAction } from '@/app/actions/order';
 
 
 const formatCurrency = (value: number) => {
@@ -58,10 +58,9 @@ export default function OrderConfirmationPage() {
 
     const fetchOrder = async () => {
       try {
-        const { data, error } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
-        if (error) throw error;
-        if (data) {
-          setOrder(data as Order);
+        const result = await getOrderByIdAction(orderId);
+        if (result.success && result.data) {
+          setOrder(result.data);
         } else {
           console.error("Pedido não encontrado, redirecionando.");
           if (lastOrder) {

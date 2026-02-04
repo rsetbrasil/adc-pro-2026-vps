@@ -167,7 +167,22 @@ export default function ProductForm({ productToEdit, onFinished }: ProductFormPr
     }
   });
 
+  // Track the current product ID to know when to reset
+  const [currentProductId, setCurrentProductId] = useState<string | null>(productToEdit?.id || null);
+
   useEffect(() => {
+    // Only reset if the product ID changes (switching between products or create mode)
+    // or if we switch from edit to create (productToEdit becomes null)
+    const newId = productToEdit?.id || null;
+
+    // If we are in the same editing session (same ID), DO NOT RESET.
+    // This prevents background updates (like categories) from wiping the form.
+    if (newId === currentProductId && form.formState.isDirty) {
+      return;
+    }
+
+    setCurrentProductId(newId);
+
     const defaultValues = productToEdit ? {
       ...productToEdit,
       description: productToEdit.description || '',
@@ -206,8 +221,8 @@ export default function ProductForm({ productToEdit, onFinished }: ProductFormPr
       commissionValue: 0,
     };
     form.reset(defaultValues);
-    setImagePreviews(defaultValues.imageUrls);
-  }, [productToEdit, categories, form]);
+    setImagePreviews(defaultValues.imageUrls || []);
+  }, [productToEdit, categories, form, currentProductId]);
 
 
   const price = form.watch('price');

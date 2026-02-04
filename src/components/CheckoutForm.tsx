@@ -31,7 +31,7 @@ import Link from 'next/link';
 import { maskCpf, maskPhone, onlyDigits } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { allocateNextCustomerCode } from '@/lib/customer-code';
-import { supabase } from '@/lib/supabase';
+import { findCustomerByCpfAction, createOrderAction, allocateNextCustomerCodeAction } from '@/app/actions/checkout';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { WhatsAppIcon } from './WhatsAppIcon';
 
@@ -168,23 +168,23 @@ export default function CheckoutForm() {
     if (cpfDigits.length === 11 && isValidCPF(maskedValue)) {
       void (async () => {
         try {
-          // Search in customers table
-          const { data: customerData, error } = await supabase
-            .from('customers')
-            .select('*')
-            .eq('cpf', cpfDigits)
-            .maybeSingle();
+          // Search via Server Action
+          const result = await findCustomerByCpfAction(cpfDigits);
 
-          if (error) throw error;
+          if (!result.success) throw new Error(result.error);
 
-          if (customerData) {
-            if (customerData.blocked) {
-              setBlockedCustomer(customerData as CustomerInfo);
-              form.setValue('cpf', ''); // Clear CPF to reset
+          if (result.data) {
+            const customerData = result.data as CustomerInfo; // types match? Action returns DB schema type?
+            // schema is snake_case? Drizzle returns camelCase if defined in schema?
+            // My schema defined keys as camelCase e.g. `neighborhood: text('neighborhood')` -> result key is `neighborhood`.
+            // So mapping should be fine.
+
+            if (result.source === 'active' && customerData.blocked) {
+              setBlockedCustomer(customerData);
+              form.setValue('cpf', '');
               return;
             }
 
-            // Sanitizar dados nulos para strings vazias para não quebrar o formulário
             const sanitizedData = {
               name: customerData.name || '',
               cpf: customerData.cpf || maskedValue,
@@ -208,53 +208,18 @@ export default function CheckoutForm() {
 
             form.reset(sanitizedData);
             setIsNewCustomer(false);
-            toast({
-              title: "Cliente Encontrado!",
-              description: "Seus dados foram preenchidos automaticamente.",
-            });
-          } else {
-            // Search in trash if not found
-            const { data: trashData } = await supabase
-              .from('customers_trash')
-              .select('data')
-              .eq('cpf', cpfDigits)
-              .maybeSingle();
 
-            if (trashData?.data) {
-              const customerData = trashData.data as CustomerInfo;
-              const sanitizedData = {
-                name: customerData.name || '',
-                cpf: customerData.cpf || maskedValue,
-                phone: customerData.phone || '',
-                phone2: customerData.phone2 || '',
-                phone3: customerData.phone3 || '',
-                email: customerData.email || '',
-                zip: customerData.zip || '',
-                address: customerData.address || '',
-                number: customerData.number || '',
-                complement: customerData.complement || '',
-                neighborhood: customerData.neighborhood || '',
-                city: customerData.city || 'Fortaleza',
-                state: customerData.state || 'CE',
-                code: customerData.code || '',
-                sellerId: customerData.sellerId || undefined,
-                sellerName: customerData.sellerName || undefined,
-                paymentMethod: 'Crediário' as const,
-                observations: form.getValues('observations') || '',
-              };
-
-              form.reset(sanitizedData);
-              setIsNewCustomer(false);
-              toast({
-                title: "Cliente Encontrado na Lixeira!",
-                description: "Seus dados foram recuperados automaticamente.",
-              });
+            if (result.source === 'trash') {
+              toast({ title: "Cliente Encontrado na Lixeira!", description: "Seus dados foram recuperados automaticamente." });
             } else {
-              setIsNewCustomer(true);
-              form.setValue('code', '');
-              form.setValue('sellerId', undefined);
-              form.setValue('sellerName', undefined);
+              toast({ title: "Cliente Encontrado!", description: "Seus dados foram preenchidos automaticamente." });
             }
+          } else {
+            // Not found
+            setIsNewCustomer(true);
+            form.setValue('code', '');
+            form.setValue('sellerId', undefined);
+            form.setValue('sellerName', undefined);
           }
         } catch (error) {
           console.error("Error searching customer:", error);
@@ -418,13 +383,14 @@ export default function CheckoutForm() {
       let code = (customerData.code || '').trim();
 
       if (!code) {
-        const { data: existingCustomer } = await supabase
-          .from('customers')
-          .select('code')
-          .eq('cpf', cpfDigits)
-          .maybeSingle();
-
-        code = existingCustomer?.code || (await allocateNextCustomerCode());
+        // Check existing code via action or allocate new
+        const existingRes = await findCustomerByCpfAction(cpfDigits);
+        if (existingRes.success && existingRes.data && existingRes.data.code) {
+          code = existingRes.data.code;
+        } else {
+          const allocRes = await allocateNextCustomerCodeAction();
+          if (allocRes.success && allocRes.code) code = allocRes.code;
+        }
       }
 
       const orderToSave: Order = {
@@ -446,30 +412,7 @@ export default function CheckoutForm() {
 
       orderToSave.commission = calculateCommission(orderToSave, products);
 
-      // Inventory check and update (simulating transaction)
-      for (const item of orderToSave.items) {
-        const { data: productData, error: productError } = await supabase
-          .from('products')
-          .select('stock')
-          .eq('id', item.id)
-          .single();
-
-        if (productError || !productData) throw new Error('Produto não encontrado.');
-
-        const currentStock = Number(productData.stock ?? 0);
-        if (currentStock < item.quantity) {
-          throw new Error('Estoque insuficiente para um ou mais produtos.');
-        }
-
-        const { error: stockUpdateError } = await supabase
-          .from('products')
-          .update({ stock: currentStock - item.quantity })
-          .eq('id', item.id);
-
-        if (stockUpdateError) throw stockUpdateError;
-      }
-
-      // Save Order
+      // Save Order via Server Action (handles stock and customer upsert)
       const payload: any = {
         id: orderToSave.id,
         date: orderToSave.date,
@@ -486,18 +429,15 @@ export default function CheckoutForm() {
         sellerName: orderToSave.sellerName,
         commission: orderToSave.commission,
         commissionPaid: orderToSave.commissionPaid,
-        created_at: orderToSave.createdAt,
+        created_at: orderToSave.createdAt, // Map to DB column name? Action logic should handle it or we map it here
         createdById: orderToSave.createdById,
         createdByName: orderToSave.createdByName,
         createdByRole: orderToSave.createdByRole,
         source: orderToSave.source,
       };
 
-      const { error: orderError } = await supabase.from('orders').insert(payload);
-      if (orderError) throw orderError;
-
-      // Upsert Customer if it's new or update if existing to ensure data consistency
-      const { error: customerError } = await supabase.from('customers').upsert({
+      // We pass the full customer data for upsert
+      const customerPayload = {
         id: onlyDigits(customerData.cpf || ''),
         cpf: onlyDigits(customerData.cpf || ''),
         name: customerData.name,
@@ -512,10 +452,11 @@ export default function CheckoutForm() {
         code: code,
         password: customerData.password || (isNewCustomer ? onlyDigits(customerData.cpf || '').substring(0, 6) : undefined),
         updated_at: new Date().toISOString()
-      });
+      };
 
-      if (customerError) console.error("Could not upsert customer info", customerError);
+      const result = await createOrderAction(payload, customerPayload);
 
+      if (!result.success) throw new Error(result.error);
 
       setLastOrder(orderToSave);
 

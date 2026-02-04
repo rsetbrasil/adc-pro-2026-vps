@@ -1,9 +1,9 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import type { AuditLog, User } from '@/lib/types';
-import { supabase } from '@/lib/supabase';
+import { getAuditLogsAction, logActionAction } from '@/app/actions/audit';
 
 interface AuditContextType {
   auditLogs: AuditLog[];
@@ -16,21 +16,16 @@ const AuditContext = createContext<AuditContextType | undefined>(undefined);
 export const AuditProvider = ({ children }: { children: ReactNode }) => {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const isPolling = useRef(true);
 
   const fetchLogs = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('audit_logs')
-        .select('*')
-        .order('timestamp', { ascending: false });
-
-      if (error) throw error;
-
-      if (data) {
-        setAuditLogs(data as AuditLog[]);
+      const result = await getAuditLogsAction();
+      if (result.success && result.data) {
+        setAuditLogs(result.data);
       }
     } catch (error) {
-      console.error("Error fetching audit logs from Supabase:", error);
+      console.error("Error fetching audit logs:", error);
     } finally {
       setIsLoading(false);
     }
@@ -39,16 +34,13 @@ export const AuditProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     fetchLogs();
 
-    // Subscribe to real-time changes
-    const channel = supabase.channel('public:audit_logs')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs' }, (payload) => {
-        const newLog = payload.new as AuditLog;
-        setAuditLogs(prev => [newLog, ...prev]);
-      })
-      .subscribe();
+    const intervalId = setInterval(() => {
+      if (isPolling.current) fetchLogs();
+    }, 15000);
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(intervalId);
+      isPolling.current = false;
     };
   }, [fetchLogs]);
 
@@ -56,22 +48,16 @@ export const AuditProvider = ({ children }: { children: ReactNode }) => {
   const logAction = useCallback(async (action: string, details: string, user: User | null) => {
     if (!user) return;
 
-    const newLog = {
-      id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-      timestamp: new Date().toISOString(),
-      userId: user.id,
-      userName: user.name,
-      userRole: user.role,
-      action,
-      details
-    };
+    // Optimistic update (optional, but might be tricky without ID, so maybe just fire and forget)
+    // We'll let polling pick it up or push it locally if we want instant feedback.
 
     try {
-      const { error } = await supabase.from('audit_logs').insert(newLog);
-      if (error) throw error;
-      // Real-time listener will update the state locally
+      const result = await logActionAction(action, details, user);
+      if (result.success) {
+        // fetchLogs(); // Refresh logs immediately
+      }
     } catch (error) {
-      console.error("Error writing audit log to Supabase:", error);
+      console.error("Error writing audit log:", error);
     }
   }, []);
 

@@ -1,10 +1,10 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import type { RolePermissions } from '@/lib/types';
 import { initialPermissions } from '@/lib/permissions';
-import { supabase } from '@/lib/supabase';
+import { getRolePermissionsAction, updateRolePermissionsAction } from '@/app/actions/permissions';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from './AuthContext';
 import { useAudit } from './AuditContext';
@@ -24,72 +24,52 @@ export const PermissionsProvider = ({ children }: { children: ReactNode }) => {
     const { toast } = useToast();
     const { user } = useAuth();
     const { logAction } = useAudit();
+    const isPolling = useRef(true);
+
+    const fetchPermissions = useCallback(async () => {
+        try {
+            const result = await getRolePermissionsAction();
+            if (result.success && result.data) {
+                setPermissions(result.data);
+            }
+        } catch (error) {
+            console.error("Failed to load permissions:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
-        const fetchPermissions = async () => {
-            try {
-                const { data, error } = await supabase
-                    .from('config')
-                    .select('value')
-                    .eq('key', 'rolePermissions')
-                    .maybeSingle();
-
-                if (error) throw error;
-
-                if (data?.value) {
-                    setPermissions({ ...initialPermissions, ...(data.value as any) });
-                } else {
-                    // Initialize with defaults if not exists
-                    await supabase
-                        .from('config')
-                        .upsert({ key: 'rolePermissions', value: initialPermissions });
-                    setPermissions(initialPermissions);
-                }
-            } catch (error) {
-                console.error("Failed to load permissions from Supabase:", error);
-                setPermissions(initialPermissions); // Fallback
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
         fetchPermissions();
 
-        // Subscribe to real-time changes
-        const channel = supabase.channel('public:config:rolePermissions')
-            .on('postgres_changes', {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'config',
-                filter: "key=eq.rolePermissions"
-            }, (payload) => {
-                if (payload.new && (payload.new as any).value) {
-                    setPermissions({ ...initialPermissions, ...((payload.new as any).value as any) });
-                }
-            })
-            .subscribe();
+        // Polling to replace Realtime
+        const intervalId = setInterval(() => {
+            if (isPolling.current) {
+                fetchPermissions();
+            }
+        }, 15000); // 15s polling for config
 
         return () => {
-            supabase.removeChannel(channel);
+            clearInterval(intervalId);
+            isPolling.current = false;
         };
-    }, []);
+    }, [fetchPermissions]);
 
     const updatePermissions = useCallback(async (newPermissions: RolePermissions) => {
         try {
-            const { error } = await supabase
-                .from('config')
-                .upsert({ key: 'rolePermissions', value: newPermissions });
+            const result = await updateRolePermissionsAction(newPermissions);
 
-            if (error) throw error;
+            if (!result.success) throw new Error(result.error);
 
-            // Real-time listener will update the state
+            setPermissions(newPermissions); // Optimistic update
+
             logAction('Atualização de Permissões', 'As permissões de acesso dos perfis foram alteradas.', user);
             toast({
                 title: "Permissões Salvas!",
                 description: "As regras de acesso foram atualizadas com sucesso.",
             });
         } catch (error) {
-            console.error("Error updating permissions in Supabase:", error);
+            console.error("Error updating permissions:", error);
             toast({ title: "Erro", description: "Não foi possível salvar as permissões.", variant: "destructive" });
         }
     }, [toast, logAction, user]);

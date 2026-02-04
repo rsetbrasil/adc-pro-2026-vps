@@ -6,7 +6,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useMe
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import type { CustomerInfo, Order } from '@/lib/types';
-import { supabase } from '@/lib/supabase';
+import { customerLoginAction, getCustomerOrdersAction } from '@/app/actions/customer';
 
 interface CustomerAuthContextType {
   customer: CustomerInfo | null;
@@ -48,35 +48,13 @@ export const CustomerAuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const fetchOrders = async () => {
-      // Query orders where customer->cpf equals the logged in customer cpf
-      // Note: In Supabase, we query JSONB columns using arrow syntax
-      // However, standard equality check on keys might be case sensitive or specific
-      // Best approach: .contains('customer', { cpf: customer.cpf }) if customer is JSONB
-      // Or .eq('customer->>cpf', customer.cpf)
-
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('customer->>cpf', customer.cpf) // Assuming customer is JSONB
-        .order('created_at', { ascending: false }); // Sort by newest
-
-      if (error) {
-        console.error("Error fetching customer orders: ", error);
-        return;
-      }
-
-      if (data) {
-        // Map created_at/updated_at if needed, mostly consistent
-        setCustomerOrders(data as unknown as Order[]);
+      const result = await getCustomerOrdersAction(customer.cpf!);
+      if (result.success && result.data) {
+        setCustomerOrders(result.data);
       }
     };
 
     fetchOrders();
-
-    // Subscribe to changes for this customer's orders
-    // Filtering real-time on JSONB might be complex in Supabase depending on configuration
-    // For now, simpler to refresh on ANY order change, or just fetch once + polling if critical
-    // Let's stick to fetch once to avoid over-fetching.
 
   }, [customer]);
 
@@ -84,16 +62,14 @@ export const CustomerAuthProvider = ({ children }: { children: ReactNode }) => {
     const normalizedCpf = cpf.replace(/\D/g, '');
 
     try {
-      // Query customers table directly
-      const { data: customers, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('cpf', normalizedCpf)
-        .limit(1);
+      const result = await customerLoginAction(normalizedCpf);
 
-      if (error) throw error;
+      if (!result.success) {
+        toast({ title: 'Falha no Login', description: result.error || 'Erro ao logar.', variant: 'destructive' });
+        return false;
+      }
 
-      const foundCustomer = customers && customers.length > 0 ? customers[0] : null;
+      const foundCustomer = result.data;
 
       if (!foundCustomer) {
         toast({ title: 'Falha no Login', description: 'CPF não encontrado.', variant: 'destructive' });

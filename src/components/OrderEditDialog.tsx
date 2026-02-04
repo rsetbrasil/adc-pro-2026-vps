@@ -88,12 +88,19 @@ const getStatusVariant = (status: Order['status']): 'secondary' | 'default' | 'o
     }
 };
 
+const safeParseDate = (date: any) => {
+    if (!date) return new Date();
+    if (date instanceof Date) return date;
+    if (typeof date === 'string') return parseISO(date);
+    return new Date(date);
+};
+
 export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogProps) {
     const { updateOrderStatus, updateOrderDetails, updateInstallmentDueDate, updateInstallmentAmount } = useAdmin();
     const { user } = useAuth();
     const { toast } = useToast();
     const { products } = useData();
-    const { logAction: auditLogAction } = useAudit(); // In case useAdmin doesn't expose it or needs it from AuditContext
+    const { logAction: auditLogAction } = useAudit();
 
     // Local state for editing
     const [installmentsInput, setInstallmentsInput] = useState(1);
@@ -113,7 +120,7 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
             setCommissionInput(formatBRL(order.commission));
             setObservationsInput(order.observations || '');
             setDiscountInput(order.discount || 0);
-            setDownPaymentInput(0); // Reset local input, actual value is in order.downPayment
+            setDownPaymentInput(0);
         }
     }, [order]);
 
@@ -329,7 +336,7 @@ export function OrderEditDialog({ open, onOpenChange, order }: OrderEditDialogPr
                             <div className="flex flex-col gap-1">
                                 <p><span className="font-semibold">Criado por:</span> {order.createdByName || 'Sistema'}</p>
                                 <p><span className="font-semibold">Origem:</span> {order.source === 'Online' ? '🌐 Catálogo Online' : '📝 Manual'}</p>
-                                <p><span className="font-semibold">Data/Hora:</span> {format(parseISO(order.createdAt || order.date), "dd/MM/yyyy 'às' HH:mm")}</p>
+                                <p><span className="font-semibold">Data/Hora:</span> {format(safeParseDate(order.createdAt || order.date), "dd/MM/yyyy 'às' HH:mm")}</p>
                                 <p><span className="font-semibold">IP:</span> {order.createdIp || '-'}</p>
                             </div>
                         </CardContent>

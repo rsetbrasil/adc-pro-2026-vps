@@ -1,11 +1,11 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import type { User } from '@/lib/types';
-import { supabase } from '@/lib/supabase';
+import { getUsersAction, createUserAction, updateUserAction, deleteUserAction, restoreUsersAction } from '@/app/actions/auth';
 import { useAudit } from './AuditContext';
 
 const initialUsers: User[] = [
@@ -38,88 +38,79 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const { logAction } = useAudit();
 
+  // Ref to track if we should polling
+  const isPolling = useRef(true);
 
-  useEffect(() => {
-    setIsLoading(true);
+  // Function to fetch users centralizing logic
+  const fetchUsers = async (showLoading = false) => {
+    if (showLoading) setIsLoading(true);
+    try {
+      const result = await getUsersAction();
 
-    const fetchUsers = async () => {
+      if (!result.success || !result.data) {
+        console.error('Error fetching users:', result.error);
+        return;
+      }
+
+      setUsers(result.data);
+
+      // Validate session against DB data
       try {
-        const { data, error }: { data: User[] | null; error: any } = await supabase.from('users').select('*');
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const parsedUser = JSON.parse(storedUser) as User;
+          const validUser = result.data.find(u => u.id === parsedUser.id);
 
-        if (error) {
-          console.error('Error fetching users:', error);
-          return;
-        }
+          if (validUser) {
+            // Update session with fresh data
+            const updatedUser = { ...validUser };
+            delete updatedUser.password;
 
-        if (data) {
-          setUsers(data);
-
-          // Validar sessão armazenada contra o banco de dados em tempo real
-          try {
-            const storedUser = localStorage.getItem('user');
-            if (storedUser) {
-              const parsedUser = JSON.parse(storedUser) as User;
-              // Verificar se o usuário ainda existe no banco
-              const validUser = data.find(u => u.id === parsedUser.id);
-              if (validUser) {
-                // Atualizar dados do usuário com informações mais recentes do banco
-                const updatedUser = { ...validUser };
-                delete updatedUser.password; // Nunca armazenar senha
-                setUser(updatedUser);
+            // Only update state if data actually changed to avoid render loops (simple check)
+            setUser(prev => {
+              if (JSON.stringify(prev) !== JSON.stringify(updatedUser)) {
                 localStorage.setItem('user', JSON.stringify(updatedUser));
-              } else {
-                // Usuário não existe mais, limpar sessão
-                localStorage.removeItem('user');
-                setUser(null);
+                return updatedUser;
               }
-            }
-          } catch (error) {
-            console.error("Failed to validate session:", error);
+              return prev;
+            });
+          } else {
+            // User deleted
             localStorage.removeItem('user');
             setUser(null);
           }
         }
-      } finally {
-        setIsLoading(false);
+      } catch (error) {
+        console.error("Failed to validate session:", error);
+        localStorage.removeItem('user');
+        setUser(null);
       }
-    };
+    } finally {
+      if (showLoading) setIsLoading(false);
+    }
+  };
 
-    fetchUsers();
+  useEffect(() => {
+    // Initial fetch
+    fetchUsers(true);
 
-    // Realtime Subscription - atualiza sessão quando usuário mudar no banco
-    const channel = supabase.channel('users-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
-        const record = payload.new as Record<string, any> | null;
-        const oldRecord = payload.old as Record<string, any> | null;
-
-        // Atualizar lista de usuários (sem loading state aqui pois é atualização em tempo real)
-        supabase.from('users').select('*').then(({ data }) => {
-          if (data) setUsers(data);
-        });
-
-        // Se o usuário logado foi modificado ou deletado, atualizar sessão
-        if (payload.eventType === 'UPDATE' && record && user && record.id === user.id) {
-          const updatedUser = { ...record } as User;
-          delete updatedUser.password;
-          setUser(updatedUser);
-          localStorage.setItem('user', JSON.stringify(updatedUser));
-        } else if (payload.eventType === 'DELETE' && oldRecord && user && oldRecord.id === user.id) {
-          // Usuário foi deletado, fazer logout
-          setUser(null);
-          localStorage.removeItem('user');
-        }
-      })
-      .subscribe();
+    // Polling interval (Replace Realtime)
+    const intervalId = setInterval(() => {
+      if (isPolling.current) {
+        fetchUsers(false);
+      }
+    }, 5000); // Poll every 5 seconds
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(intervalId);
+      isPolling.current = false;
     };
   }, []);
 
 
   const login = (username: string, pass: string) => {
-    // Basic auth logic using the users list fetched
-    // In production, this should be a direct DB query or Supabase Auth
+    // Logic remains same - client side filtering of fetched users
+    // (This matches previous implementation)
     const foundUser = users.find(u => u.username.toLowerCase() === username.toLowerCase());
 
     if (!foundUser) {
@@ -127,7 +118,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // Passwords stored as plain text currently
     if (!foundUser.password) {
       toast({ title: 'Falha no Login', description: 'Usuário sem senha cadastrada.', variant: 'destructive' });
       return;
@@ -136,7 +126,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const isPasswordValid = foundUser.password === pass;
     if (isPasswordValid) {
       const userToStore = { ...foundUser };
-      // Ensure password is not stored in state or localStorage for security
       delete userToStore.password;
 
       setUser(userToStore);
@@ -176,15 +165,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return false;
     }
 
-    // Using random UUID or similar for ID, Supabase can handle this but we want to mimic current logic
-    const newUserId = `user-${Date.now()}`;
-    const newUser: User = { ...data, canBeAssigned: data.canBeAssigned ?? true, id: newUserId };
+    const result = await createUserAction(data);
 
-    try {
-      const { error } = await supabase.from('users').insert(newUser);
-
-      if (error) throw error;
-
+    if (result.success && result.data) {
+      const newUser = result.data as User;
       setUsers((prev) => [...prev, newUser]);
       logAction('Criação de Usuário', `Novo usuário "${data.name}" (Perfil: ${data.role}) foi criado.`, user);
       toast({
@@ -192,10 +176,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: `O usuário ${data.name} foi criado com sucesso.`,
       });
       return true;
-    } catch (error: any) {
+    } else {
       toast({
         title: 'Erro ao Criar Usuário',
-        description: 'Não foi possível salvar o novo usuário. ' + error.message,
+        description: 'Não foi possível salvar o novo usuário. ' + result.error,
         variant: 'destructive',
       });
       return false;
@@ -219,14 +203,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (updatedUser) {
       let details = `Dados do usuário "${updatedUser.name}" foram alterados.`;
       if (data.name && data.name !== updatedUser.name) details += ` Nome: de "${updatedUser.name}" para "${data.name}".`;
-      // ... build details string same as before
       logAction('Atualização de Usuário', details, user);
     }
 
-    try {
-      const { error } = await supabase.from('users').update(data).eq('id', userId);
-      if (error) throw error;
+    const result = await updateUserAction(userId, data);
 
+    if (result.success) {
       setUsers((prev) => prev.map((u) => (u.id === userId ? ({ ...u, ...data } as User) : u)));
 
       if (user?.id === userId) {
@@ -240,32 +222,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         title: 'Usuário Atualizado!',
         description: 'As informações do usuário foram salvas com sucesso.',
       });
-    } catch (error: any) {
+    } else {
       toast({
         title: 'Erro ao Atualizar',
-        description: 'Não foi possível salvar as alterações do usuário. ' + error.message,
+        description: 'Não foi possível salvar as alterações do usuário. ' + result.error,
         variant: 'destructive',
       });
-      throw error;
+      throw new Error(result.error);
     }
   };
 
   const deleteUser = async (userId: string) => {
     if (user?.id === userId) {
-      toast({
-        title: 'Ação não permitida',
-        description: 'Você não pode excluir seu próprio usuário.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Ação não permitida', description: 'Você não pode excluir seu próprio usuário.', variant: 'destructive' });
       return;
     }
 
     const userToDelete = users.find(u => u.id === userId);
+    const result = await deleteUserAction(userId);
 
-    try {
-      const { error } = await supabase.from('users').delete().eq('id', userId);
-      if (error) throw error;
-
+    if (result.success) {
       setUsers((prev) => prev.filter((u) => u.id !== userId));
       if (userToDelete) {
         logAction('Exclusão de Usuário', `Usuário "${userToDelete.name}" foi excluído.`, user);
@@ -276,13 +252,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         variant: 'destructive',
         duration: 5000,
       });
-    } catch (error: any) {
+    } else {
       toast({
         title: 'Erro ao Excluir',
-        description: 'Não foi possível excluir o usuário. ' + error.message,
+        description: 'Não foi possível excluir o usuário. ' + result.error,
         variant: 'destructive',
       });
-      throw error;
+      throw new Error(result.error);
     }
   };
 
@@ -293,31 +269,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const currentUserInDB = users.find(u => u.id === user.id);
-
     if (!currentUserInDB || currentUserInDB.password !== currentPassword) {
       toast({ title: "Erro", description: "A senha atual está incorreta.", variant: "destructive" });
       return false;
     }
 
-    await updateUser(user.id, { password: newPassword });
-    logAction('Alteração de Senha', `O usuário "${user.name}" alterou a própria senha.`, user);
-    toast({ title: "Senha Alterada!", description: "Sua senha foi atualizada com sucesso." });
-    return true;
+    // Reuse updateUser
+    const result = await updateUserAction(user.id, { password: newPassword });
+    if (result.success) {
+      logAction('Alteração de Senha', `O usuário "${user.name}" alterou a própria senha.`, user);
+      toast({ title: "Senha Alterada!", description: "Sua senha foi atualizada com sucesso." });
+      // Update local state is handled by updateUser (or next poll)
+      return true;
+    }
+    return false;
   };
 
   const restoreUsers = async (usersToRestore: User[]) => {
-    // Deleting all current users and inserting new ones
-    // This is risky in Supabase due to foreign keys, but we'll try simplistic approach for now
-    // Or better: Upsert
-    try {
-      // Upsert allows updating existing and inserting new
-      const { error } = await supabase.from('users').upsert(usersToRestore);
-      if (error) throw error;
-
+    const result = await restoreUsersAction(usersToRestore);
+    if (result.success) {
       logAction('Restauração de Usuários', 'Todos os usuários foram restaurados a partir de um backup.', user);
       toast({ title: "Usuários Restaurados!", description: "A lista de usuários foi substituída com sucesso." });
-    } catch (error: any) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      fetchUsers(false); // Immediate refresh
+    } else {
+      toast({ title: 'Erro', description: result.error, variant: 'destructive' });
     }
   };
 

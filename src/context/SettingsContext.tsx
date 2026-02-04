@@ -2,12 +2,12 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/lib/supabase';
 import { useAudit } from './AuditContext';
 import { useAuth } from './AuthContext';
 import type { StoreSettings } from '@/lib/types';
+import { getSettingsAction, updateSettingsAction } from '@/app/actions/settings';
 
 const initialSettings: StoreSettings = {
     storeName: 'ADC Móveis',
@@ -19,13 +19,6 @@ const initialSettings: StoreSettings = {
     accessControlEnabled: false,
     commercialHourStart: '08:00',
     commercialHourEnd: '18:00',
-};
-
-const mergeWithDefaults = (maybeSettings: Partial<StoreSettings> | null | undefined): StoreSettings => {
-    return {
-        ...initialSettings,
-        ...(maybeSettings || {}),
-    };
 };
 
 interface SettingsContextType {
@@ -44,25 +37,18 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     const { toast } = useToast();
     const { logAction } = useAudit();
     const { user } = useAuth();
+    const isPolling = useRef(true);
 
 
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const { data, error } = await supabase
-                    .from('config')
-                    .select('value')
-                    .eq('key', 'storeSettings')
-                    .maybeSingle();
-
-                if (error) throw error;
-
-                if (data?.value) {
-                    const remote = mergeWithDefaults(data.value as Partial<StoreSettings>);
-                    setSettings(remote);
+                const result = await getSettingsAction();
+                if (result.success && result.data) {
+                    setSettings(result.data);
                 }
             } catch (error) {
-                console.error("Failed to load settings from Supabase:", error);
+                console.error("Failed to load settings:", error);
             } finally {
                 setIsLoading(false);
             }
@@ -70,23 +56,13 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
         fetchSettings();
 
-        // Subscribe to real-time changes
-        const channel = supabase.channel('public:config:storeSettings')
-            .on('postgres_changes', {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'config',
-                filter: "key=eq.storeSettings"
-            }, (payload) => {
-                if (payload.new && (payload.new as any).value) {
-                    const remote = mergeWithDefaults((payload.new as any).value as Partial<StoreSettings>);
-                    setSettings(remote);
-                }
-            })
-            .subscribe();
+        const intervalId = setInterval(() => {
+            if (isPolling.current) fetchSettings();
+        }, 30000); // 30s polling for settings
 
         return () => {
-            supabase.removeChannel(channel);
+            clearInterval(intervalId);
+            isPolling.current = false;
         };
     }, []);
 
@@ -98,11 +74,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
             const updatedValue = { ...settings, ...cleanedNewSettings };
 
-            const { error } = await supabase
-                .from('config')
-                .upsert({ key: 'storeSettings', value: updatedValue });
+            const result = await updateSettingsAction(updatedValue);
 
-            if (error) throw error;
+            if (!result.success) throw new Error(result.error);
+
+            setSettings(updatedValue);
 
             logAction('Atualização de Configurações', `Configurações da loja foram alteradas.`, user);
             toast({
@@ -110,7 +86,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
                 description: "As informações da loja foram atualizadas com sucesso.",
             });
         } catch (error) {
-            console.error("Error updating settings in Supabase:", error);
+            console.error("Error updating settings:", error);
             toast({ title: "Erro", description: "Não foi possível salvar as configurações.", variant: "destructive" });
         }
     };
