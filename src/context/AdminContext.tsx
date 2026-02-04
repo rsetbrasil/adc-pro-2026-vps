@@ -13,6 +13,8 @@ import { formatCustomerCode, reserveCustomerCodes } from '@/lib/customer-code';
 // Server Actions
 import { getAdminOrdersAction, updateOrderStatusAction, moveOrderToTrashAction, permanentlyDeleteOrderAction, recordInstallmentPaymentAction, updateOrderDetailsAction } from '@/app/actions/admin/orders';
 import { addProductAction, updateProductAction, deleteProductAction } from '@/app/actions/admin/products';
+import { addCategoryAction, deleteCategoryAction, updateCategoryNameAction, addSubcategoryAction, updateSubcategoryAction, deleteSubcategoryAction } from '@/app/actions/admin/categories';
+import { payCommissionAction, reverseCommissionPaymentAction, getCommissionPaymentsAction } from '@/app/actions/admin/financials';
 import { saveStockAuditAction, getStockAuditsAction, addAvariaAction, updateAvariaAction, deleteAvariaAction, getAvariasAction } from '@/app/actions/admin/inventory';
 import { createOrderAction } from '@/app/actions/checkout';
 import { getProductsAction } from '@/app/actions/data';
@@ -269,11 +271,12 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   const generateCustomerCodes = async (logAction: LogAction, user: User | null) => {
     const res = await generateCustomerCodesAction(user);
     if (res.success) {
-      logAction('Códigos Gerados', `Gerados códigos para ${res.count} clientes.`, user);
-      return { newCustomers: res.count, updatedOrders: 0 };
+      logAction('Códigos Gerados', `Gerados códigos para ${res.count || 0} clientes.`, user);
+      return { newCustomers: res.count || 0, updatedOrders: 0 };
     }
     return { newCustomers: 0, updatedOrders: 0 };
   };
+
   const reversePayment = async () => { };
   const updateInstallmentDueDate = async () => { };
   const updateInstallmentAmount = async () => { };
@@ -365,126 +368,137 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       toast({ title: "Erro ao atualizar", description: res.error, variant: "destructive" });
     }
   };
-}
+
+  const importProducts = async (productsToImport: Product[], logAction: LogAction, user: User | null) => {
+    const res = await importProductsAction(productsToImport, user);
+    if (res.success) {
+      logAction('Importação de Produtos', `${productsToImport.length} produtos importados.`, user);
+      // Refresh handled by polling
+    }
   };
-const importProducts = async (productsToImport: Product[], logAction: LogAction, user: User | null) => {
-  const res = await importProductsAction(productsToImport, user);
-  if (res.success) {
-    logAction('Importação de Produtos', `${productsToImport.length} produtos importados.`, user);
-    // Refresh handled by polling
-  }
-};
-const addCategory = async (categoryName: string, logAction: LogAction, user: User | null) => {
-  const res = await addCategoryAction(categoryName, user);
-  if (res.success) {
-    logAction('Categoria Criada', `Categoria ${categoryName} criada.`, user);
-    // DataContext polling will update the list
-  }
-};
-const deleteCategory = async (categoryId: string, logAction: LogAction, user: User | null) => {
-  const res = await deleteCategoryAction(categoryId, user);
-  if (res.success) logAction('Categoria Removida', `Categoria removida.`, user);
-};
-const updateCategoryName = async (categoryId: string, newName: string, logAction: LogAction, user: User | null) => {
-  const res = await updateCategoryNameAction(categoryId, newName, user);
-  if (res.success) logAction('Categoria Atualizada', `Categoria atualizada para ${newName}.`, user);
-};
-const addSubcategory = async (categoryId: string, subcategoryName: string, logAction: LogAction, user: User | null) => {
-  const res = await addSubcategoryAction(categoryId, subcategoryName, user);
-  if (res.success) logAction('Subcategoria Criada', `Subcategoria ${subcategoryName} criada.`, user);
-};
-const updateSubcategory = async (categoryId: string, oldSub: string, newSub: string, logAction: LogAction, user: User | null) => {
-  const res = await updateSubcategoryAction(categoryId, oldSub, newSub, user);
-  if (res.success) logAction('Subcategoria Atualizada', `Subcategoria ${oldSub} -> ${newSub}.`, user);
-};
-const deleteSubcategory = async (categoryId: string, subcategoryName: string, logAction: LogAction, user: User | null) => {
-  const res = await deleteSubcategoryAction(categoryId, subcategoryName, user);
-  if (res.success) logAction('Subcategoria Removida', `Subcategoria ${subcategoryName} removida.`, user);
-};
-const moveCategory = async () => { };
-const reorderSubcategories = async () => { };
-const moveSubcategory = async () => { };
-const payCommissions = async (sellerId: string, sellerName: string, amount: number, orderIds: string[], period: string, logAction: LogAction, user: User | null) => {
-  const res = await payCommissionAction(sellerId, sellerName, amount, orderIds, period, user);
-  if (res.success) {
-    logAction('Pagamento de Comissão', `Pagamento de R$ ${amount.toFixed(2)} para ${sellerName}.`, user);
-    return res.data;
-  }
-  return null;
-};
-const reverseCommissionPayment = async (paymentId: string, logAction: LogAction, user: User | null) => {
-  const res = await reverseCommissionPaymentAction(paymentId, user);
-  if (res.success) logAction('Estorno de Comissão', `Pagamento ${paymentId} estornado.`, user);
-};
-const deleteAvaria = async (id: string, logAction: LogAction, user: User | null) => {
-  const res = await deleteAvariaAction(id, user);
-  if (res.success) logAction('Avaria Excluída', `Avaria excluída.`, user);
-};
-const emptyTrash = async (logAction: LogAction, user: User | null) => {
-  await emptyTrashAction(user);
-  logAction('Lixeira Esvaziada', 'Lixeira de produtos esvaziada.', user);
-};
-const restoreProduct = async (product: Product, logAction: LogAction, user: User | null) => {
-  await restoreProductAction(product.id, user);
-  logAction('Produto Restaurado', `Produto ${product.name} restaurado.`, user);
-  // Local update helper if needed, but polling works
-  updateProductLocally({ ...product, deletedAt: undefined });
-};
-const permanentlyDeleteProduct = async (productId: string, logAction: LogAction, user: User | null) => {
-  await permanentlyDeleteProductWithIdAction(productId, user);
-  logAction('Produto Excluído Permanentemente', `Produto ${productId} apagado.`, user);
-  deleteProductLocally(productId);
-};
-const fetchDeletedProducts = async () => {
-  const res = await fetchDeletedProductsAction();
-  return res.success && res.data ? res.data : [];
-};
+  const addCategory = async (categoryName: string, logAction: LogAction, user: User | null) => {
+    const res = await addCategoryAction(categoryName, user);
+    if (res.success) {
+      logAction('Categoria Criada', `Categoria ${categoryName} criada.`, user);
+      // DataContext polling will update the list
+    }
+  };
+  const deleteCategory = async (categoryId: string, logAction: LogAction, user: User | null) => {
+    const res = await deleteCategoryAction(categoryId, user);
+    if (res.success) logAction('Categoria Removida', `Categoria removida.`, user);
+  };
+  const updateCategoryName = async (categoryId: string, newName: string, logAction: LogAction, user: User | null) => {
+    const res = await updateCategoryNameAction(categoryId, newName, user);
+    if (res.success) logAction('Categoria Atualizada', `Categoria atualizada para ${newName}.`, user);
+  };
+  const addSubcategory = async (categoryId: string, subcategoryName: string, logAction: LogAction, user: User | null) => {
+    const res = await addSubcategoryAction(categoryId, subcategoryName, user);
+    if (res.success) logAction('Subcategoria Criada', `Subcategoria ${subcategoryName} criada.`, user);
+  };
+  const updateSubcategory = async (categoryId: string, oldSub: string, newSub: string, logAction: LogAction, user: User | null) => {
+    const res = await updateSubcategoryAction(categoryId, oldSub, newSub, user);
+    if (res.success) logAction('Subcategoria Atualizada', `Subcategoria ${oldSub} -> ${newSub}.`, user);
+  };
+  const deleteSubcategory = async (categoryId: string, subcategoryName: string, logAction: LogAction, user: User | null) => {
+    const res = await deleteSubcategoryAction(categoryId, subcategoryName, user);
+    if (res.success) logAction('Subcategoria Removida', `Subcategoria ${subcategoryName} removida.`, user);
+  };
+  const moveCategory = async () => { };
+  const reorderSubcategories = async () => { };
+  const moveSubcategory = async () => { };
+  const payCommissions = async (sellerId: string, sellerName: string, amount: number, orderIds: string[], period: string, logAction: LogAction, user: User | null) => {
+    const res = await payCommissionAction(sellerId, sellerName, amount, orderIds, period, user);
+    if (res.success) {
+      logAction('Pagamento de Comissão', `Pagamento de R$ ${amount.toFixed(2)} para ${sellerName}.`, user);
+      return res.data;
+    }
+    return null;
+  };
+  const reverseCommissionPayment = async (paymentId: string, logAction: LogAction, user: User | null) => {
+    const res = await reverseCommissionPaymentAction(paymentId, user);
+    if (res.success) logAction('Estorno de Comissão', `Pagamento ${paymentId} estornado.`, user);
+  };
+  const saveStockAudit = async (audit: StockAudit, logAction: LogAction, user: User | null) => {
+    const res = await saveStockAuditAction(audit, user);
+    if (res.success) logAction('Auditoria de Estoque', `Auditoria ${audit.month}/${audit.year} salva.`, user);
+  };
+  const addAvaria = async (avaria: any, logAction: LogAction, user: User | null) => {
+    const res = await addAvariaAction(avaria, user);
+    if (res.success) logAction('Avaria Registrada', `Avaria em ${avaria.productName} registrada.`, user);
+  };
+  const updateAvaria = async (id: string, data: any, logAction: LogAction, user: User | null) => {
+    const res = await updateAvariaAction(id, data, user);
+    if (res.success) logAction('Avaria Atualizada', `Avaria atualizada.`, user);
+  };
+  const deleteAvaria = async (id: string, logAction: LogAction, user: User | null) => {
+    const res = await deleteAvariaAction(id, user);
+    if (res.success) logAction('Avaria Excluída', `Avaria excluída.`, user);
+  };
+  const emptyTrash = async (logAction: LogAction, user: User | null) => {
+    await emptyTrashAction(user);
+    logAction('Lixeira Esvaziada', 'Lixeira de produtos esvaziada.', user);
+  };
+  const restoreProduct = async (product: Product, logAction: LogAction, user: User | null) => {
+    await restoreProductAction(product.id, user);
+    logAction('Produto Restaurado', `Produto ${product.name} restaurado.`, user);
+    // Local update helper if needed, but polling works
+    updateProductLocally({ ...product, deletedAt: undefined });
+  };
+  const permanentlyDeleteProduct = async (productId: string, logAction: LogAction, user: User | null) => {
+    await permanentlyDeleteProductWithIdAction(productId, user);
+    logAction('Produto Excluído Permanentemente', `Produto ${productId} apagado.`, user);
+    deleteProductLocally(productId);
+  };
+  const fetchDeletedProducts = async () => {
+    const res = await fetchDeletedProductsAction();
+    return res.success && res.data ? res.data : [];
+  };
 
-const restoreAdminData = async () => { }; // Deprecated or specific backup restore logic
-const resetOrders = async (logAction: LogAction, user: User | null) => {
-  await resetOrdersAction(user);
-  logAction('Reset de Pedidos', 'Todos os pedidos foram apagados.', user);
-  setOrders([]);
-};
-const resetProducts = async (logAction: LogAction, user: User | null) => {
-  await resetProductsAction(user);
-  logAction('Reset de Produtos', 'Todos os produtos foram apagados.', user);
-};
-const resetFinancials = async (logAction: LogAction, user: User | null) => {
-  await resetFinancialsAction(user);
-  logAction('Reset Financeiro', 'Dados financeiros resetados.', user);
-};
-const resetAllAdminData = async (logAction: LogAction, user: User | null) => {
-  await resetAllAdminDataAction(user);
-  logAction('Reset Geral', 'Todos os dados do sistema foram apagados.', user);
-  setOrders([]);
-  setCustomers([]);
-};
+  const restoreAdminData = async () => { }; // Deprecated or specific backup restore logic
+  const resetOrders = async (logAction: LogAction, user: User | null) => {
+    await resetOrdersAction(user);
+    logAction('Reset de Pedidos', 'Todos os pedidos foram apagados.', user);
+    setOrders([]);
+  };
+  const resetProducts = async (logAction: LogAction, user: User | null) => {
+    await resetProductsAction(user);
+    logAction('Reset de Produtos', 'Todos os produtos foram apagados.', user);
+  };
+  const resetFinancials = async (logAction: LogAction, user: User | null) => {
+    await resetFinancialsAction(user);
+    logAction('Reset Financeiro', 'Dados financeiros resetados.', user);
+  };
+  const resetAllAdminData = async (logAction: LogAction, user: User | null) => {
+    await resetAllAdminDataAction(user);
+    logAction('Reset Geral', 'Todos os dados do sistema foram apagados.', user);
+    setOrders([]);
+    setCustomers([]);
+  };
 
-// Computed
-const customersForUI = useMemo(() => customers, [customers]);
-const customerOrders = useMemo(() => ({}), [orders]);
-const customerFinancials = useMemo(() => ({}), [orders]);
-const financialSummary = useMemo(() => ({ totalVendido: 0, totalRecebido: 0, totalPendente: 0, lucroBruto: 0, monthlyData: [] }), [orders]);
-const commissionSummary = useMemo(() => ({ totalPendingCommission: 0, commissionsBySeller: [] }), [orders]);
+  // Computed
+  const customersForUI = useMemo(() => customers, [customers]);
+  const customerOrders = useMemo(() => ({}), [orders]);
+  const customerFinancials = useMemo(() => ({}), [orders]);
+  const financialSummary = useMemo(() => ({ totalVendido: 0, totalRecebido: 0, totalPendente: 0, lucroBruto: 0, monthlyData: [] }), [orders]);
+  const commissionSummary = useMemo(() => ({ totalPendingCommission: 0, commissionsBySeller: [] }), [orders]);
 
-const value = {
-  addOrder, addCustomer, generateCustomerCodes, deleteOrder, permanentlyDeleteOrder, updateOrderStatus, recordInstallmentPayment, reversePayment, updateInstallmentDueDate, updateInstallmentAmount, updateCustomer, deleteCustomer, restoreCustomerFromTrash, permanentlyDeleteCustomerFromTrash, importCustomers, updateOrderDetails,
-  addProduct, updateProduct, deleteProduct, importProducts,
-  addCategory, deleteCategory, updateCategoryName, addSubcategory, updateSubcategory, deleteSubcategory, moveCategory, reorderSubcategories, moveSubcategory,
-  payCommissions, reverseCommissionPayment,
-  restoreAdminData, resetOrders, resetProducts, resetFinancials, resetAllAdminData,
-  saveStockAudit, addAvaria, updateAvaria, deleteAvaria,
-  emptyTrash,
-  restoreProduct, permanentlyDeleteProduct, fetchDeletedProducts,
-  orders, commissionPayments, stockAudits, avarias, chatSessions, customers: customersForUI, deletedCustomers, customerOrders, customerFinancials, financialSummary, commissionSummary,
-};
+  const value = {
+    addOrder, addCustomer, generateCustomerCodes, deleteOrder, permanentlyDeleteOrder, updateOrderStatus, recordInstallmentPayment, reversePayment, updateInstallmentDueDate, updateInstallmentAmount, updateCustomer, deleteCustomer, restoreCustomerFromTrash, permanentlyDeleteCustomerFromTrash, importCustomers, updateOrderDetails,
+    addProduct, updateProduct, deleteProduct, importProducts,
+    addCategory, deleteCategory, updateCategoryName, addSubcategory, updateSubcategory, deleteSubcategory, moveCategory, reorderSubcategories, moveSubcategory,
+    payCommissions, reverseCommissionPayment,
+    restoreAdminData, resetOrders, resetProducts, resetFinancials, resetAllAdminData,
+    saveStockAudit, addAvaria, updateAvaria, deleteAvaria,
+    emptyTrash,
+    restoreProduct, permanentlyDeleteProduct, fetchDeletedProducts,
+    orders, commissionPayments, stockAudits, avarias, chatSessions, customers: customersForUI, deletedCustomers, customerOrders, customerFinancials, financialSummary, commissionSummary,
+  };
 
-return (
-  <AdminContext.Provider value={value}>
-    {children}
-  </AdminContext.Provider>
-);
+  return (
+    <AdminContext.Provider value={value}>
+      {children}
+    </AdminContext.Provider>
+  );
 };
 
 export const useAdmin = () => {
