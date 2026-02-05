@@ -143,7 +143,11 @@ Cole o seguinte conteúdo (altere `seu-dominio.com`):
 ```nginx
 server {
     listen 80;
+    # Configuração para Domínio (substitua seu-dominio.com pelo seu domínio real)
     server_name seu-dominio.com www.seu-dominio.com;
+
+    # Se ainda estiver usando apenas IP, mantenha a linha abaixo e comente a de cima:
+    # server_name _;
 
     location / {
         proxy_pass http://localhost:3000;
@@ -155,6 +159,8 @@ server {
     }
 }
 ```
+
+> **Importante:** Se você estiver usando Cloudflare, certifique-se de que o modo SSL/TLS esteja como "Full" ou "Full (Strict)".
 
 Ative o site e reinicie o Nginx:
 ```bash
