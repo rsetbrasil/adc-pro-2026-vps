@@ -144,7 +144,7 @@ Cole o seguinte conteúdo (altere `seu-dominio.com`):
 server {
     listen 80;
     # Configuração para Domínio (substitua seu-dominio.com pelo seu domínio real)
-    server_name seu-dominio.com www.seu-dominio.com;
+    server_name adcmoveiseletro.com.br www.adcmoveiseletro.com.br;
 
     # Se ainda estiver usando apenas IP, mantenha a linha abaixo e comente a de cima:
     # server_name _;
@@ -181,7 +181,7 @@ apt install -y certbot python3-certbot-nginx
 
 Gere o certificado:
 ```bash
-certbot --nginx -d seu-dominio.com -d www.seu-dominio.com
+certbot --nginx -d adcmoveiseletro.com.br -d www.adcmoveiseletro.com.br
 ```
 Siga as instruções na tela. O Certbot configurará o HTTPS automaticamente.
 
