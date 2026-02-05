@@ -1,5 +1,5 @@
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -8,7 +8,7 @@ async function main() {
         const order = await prisma.order.findFirst({
             where: {
                 installmentDetails: {
-                    not: null
+                    not: Prisma.JsonNull
                 }
             }
         });
