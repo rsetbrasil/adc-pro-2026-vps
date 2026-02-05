@@ -92,7 +92,8 @@ DATABASE_URL="postgresql://appuser:sua_senha_segura@localhost:5432/appdb?schema=
 AUTH_SECRET="seu_segredo_gerado_aqui"
 
 # Outras Configurações
-NEXT_PUBLIC_APP_URL="https://seu-dominio.com"
+NEXT_PUBLIC_APP_URL="https://www.adcmoveiseletro.com.br"
+NEXTAUTH_URL="https://www.adcmoveiseletro.com.br"
 ```
 Salve com `Ctrl+O`, Enter, e `Ctrl+X`.
 
