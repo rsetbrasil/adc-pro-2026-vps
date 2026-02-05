@@ -16,9 +16,120 @@ import Logo from '@/components/Logo';
 import { getSettingsAction } from '@/app/actions/settings';
 import { getOrderForCarnetAction } from '@/app/actions/orders-fetcher';
 
-// ... (imports remain the same, except supabase)
+// Helper functions
+const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    }).format(value);
+};
 
-// ... (ReceiptContent and other helper components remain the same)
+const initialSettings: StoreSettings = {
+    storeName: 'ADC Móveis',
+    storeCity: '',
+    storeAddress: '',
+    pixKey: '',
+    storePhone: '',
+    logoUrl: '',
+    accessControlEnabled: false,
+    commercialHourStart: '08:00',
+    commercialHourEnd: '18:00',
+};
+
+// Receipt Content Component
+const ReceiptContent = ({ order, installment, settings, via }: { order: Order; installment: Installment; settings: StoreSettings; via: string }) => {
+    const remainingBalance = useMemo(() => {
+        if (installment.status === 'Pago') return 0;
+        const paid = Number(installment.paidAmount) || 0;
+        const amount = Number(installment.amount) || 0;
+        return Math.max(0, amount - paid);
+    }, [installment]);
+
+    return (
+        <div className="text-sm space-y-3">
+            <div className="text-center border-b pb-2">
+                <div className="flex items-center justify-center gap-2 mb-1">
+                    <Logo />
+                    <div>
+                        <p className="font-bold text-base">{settings.storeName}</p>
+                        <p className="text-xs text-muted-foreground">{settings.storeAddress}</p>
+                    </div>
+                </div>
+                {settings.storePhone && (
+                    <p className="text-xs text-muted-foreground">WhatsApp: {settings.storePhone}</p>
+                )}
+            </div>
+
+            <div className="text-center border-b pb-2">
+                <p className="font-bold text-lg">COMPROVANTE - VIA {via.toUpperCase()}</p>
+                <p className="text-xs">Extrato de Parcela</p>
+            </div>
+
+            <div className="space-y-1 border-b pb-2">
+                <div className="grid grid-cols-2 gap-x-2">
+                    <p className="text-xs text-muted-foreground">Pedido:</p>
+                    <p className="font-semibold">{order.id}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-2">
+                    <p className="text-xs text-muted-foreground">Cliente:</p>
+                    <p className="font-semibold">{order.customer.name}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-2">
+                    <p className="text-xs text-muted-foreground">CPF:</p>
+                    <p className="font-semibold">{order.customer.cpf || '-'}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-2">
+                    <p className="text-xs text-muted-foreground">Telefone:</p>
+                    <p className="font-semibold">{order.customer.phone}</p>
+                </div>
+            </div>
+
+            <div className="space-y-1 border-b pb-2">
+                <div className="grid grid-cols-2 gap-x-2">
+                    <p className="text-xs text-muted-foreground">Parcela:</p>
+                    <p className="font-semibold">{installment.installmentNumber}/{order.installments}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-2">
+                    <p className="text-xs text-muted-foreground">Vencimento:</p>
+                    <p className="font-semibold">{format(parseISO(installment.dueDate), 'dd/MM/yyyy')}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-x-2">
+                    <p className="text-xs text-muted-foreground">Valor:</p>
+                    <p className="font-semibold text-lg">{formatCurrency(installment.amount)}</p>
+                </div>
+                {installment.status === 'Pago' && installment.paymentDate && (
+                    <div className="grid grid-cols-2 gap-x-2">
+                        <p className="text-xs text-muted-foreground">Data Pagamento:</p>
+                        <p className="font-semibold text-green-600">{format(parseISO(installment.paymentDate), 'dd/MM/yyyy')}</p>
+                    </div>
+                )}
+                {installment.paidAmount && installment.paidAmount > 0 && (
+                    <div className="grid grid-cols-2 gap-x-2">
+                        <p className="text-xs text-muted-foreground">Valor Pago:</p>
+                        <p className="font-semibold text-green-600">{formatCurrency(installment.paidAmount)}</p>
+                    </div>
+                )}
+                {remainingBalance > 0 && (
+                    <div className="grid grid-cols-2 gap-x-2">
+                        <p className="text-xs text-muted-foreground">Saldo Restante:</p>
+                        <p className="font-semibold text-red-600">{formatCurrency(remainingBalance)}</p>
+                    </div>
+                )}
+            </div>
+
+            <div className="text-center pt-2">
+                <p className="text-xs font-semibold">STATUS: {installment.status === 'Pago' ? '✓ PAGO' : 'PENDENTE'}</p>
+                {installment.status !== 'Pago' && (
+                    <p className="text-xs text-muted-foreground mt-1">Pague via PIX ou na loja</p>
+                )}
+            </div>
+
+            <div className="text-xs text-muted-foreground text-center border-t pt-2">
+                <p>Emitido em {format(new Date(), "dd/MM/yyyy 'às' HH:mm")}</p>
+            </div>
+        </div>
+    );
+};
 
 export default function SingleInstallmentPage() {
     const params = useParams();
