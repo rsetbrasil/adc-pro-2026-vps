@@ -68,8 +68,8 @@ ALTER DATABASE appdb OWNER TO appuser;
 Navegue para a pasta de sites (recomendado):
 ```bash
 cd /var/www
-git clone https://github.com/seu-usuario/seu-repositorio.git adc-pro
-cd adc-pro
+git clone https://github.com/rsetbrasil/adc-pro-2026-vps.git adc-pro-2026-vps
+cd adc-pro-2026-vps
 ```
 
 ### Instale as Dependências
@@ -119,7 +119,7 @@ npm run build
 Inicie a aplicação com o PM2 para que ela rode em segundo plano e reinicie automaticamente.
 
 ```bash
-pm2 start npm --name "adc-pro" -- start
+pm2 start npm --name "adc-pro-2026-vps" -- start
 pm2 save
 pm2 startup
 ```
@@ -136,7 +136,7 @@ apt install -y nginx
 
 Crie um arquivo de configuração para seu site:
 ```bash
-nano /etc/nginx/sites-available/adc-pro
+nano /etc/nginx/sites-available/adc-pro-2026-vps
 ```
 
 Cole o seguinte conteúdo (altere `seu-dominio.com`):
@@ -165,7 +165,7 @@ server {
 
 Ative o site e reinicie o Nginx:
 ```bash
-ln -s /etc/nginx/sites-available/adc-pro /etc/nginx/sites-enabled/
+ln -s /etc/nginx/sites-available/adc-pro-2026-vps /etc/nginx/sites-enabled/
 rm /etc/nginx/sites-enabled/default
 nginx -t
 systemctl restart nginx
@@ -190,15 +190,15 @@ Siga as instruções na tela. O Certbot configurará o HTTPS automaticamente.
 
 ## 7. Manutenção e Comandos Úteis
 
-*   **Ver logs da aplicação:** `pm2 logs adc-pro`
-*   **Reiniciar aplicação:** `pm2 restart adc-pro`
+*   **Ver logs da aplicação:** `pm2 logs adc-pro-2026-vps`
+*   **Reiniciar aplicação:** `pm2 restart adc-pro-2026-vps`
 *   **Atualizar código:**
     ```bash
     git pull
     npm install
     npx prisma db push
     npm run build
-    pm2 restart adc-pro
+    pm2 restart adc-pro-2026-vps
     ```
 
 ---
